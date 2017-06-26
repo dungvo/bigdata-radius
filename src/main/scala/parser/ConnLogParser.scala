@@ -1,0 +1,46 @@
+package parser
+
+import scala.util.matching.Regex
+import util.AtomicPattern
+/**
+  * Created by hungdv on 08/03/2017.
+  */
+class ConnLogParser extends AbtractLogParser {
+  private val c_time2               =   AtomicPattern.time2
+  private val c_ssThreadId          =   AtomicPattern.ssThreadId
+  private val c_contask             =   AtomicPattern.conTask
+  private val c_content             =   AtomicPattern.content
+  private val c_nASName             =   AtomicPattern.nASName
+  private val c_undefinedText       =   AtomicPattern.unindentified
+  private val c_rejectCause         =   AtomicPattern.rejectCause
+  private val c_rejectResultDetail  =   AtomicPattern.rejectResultDetail
+
+  private val conRegexPattern: Regex          = AtomicPattern.conRegexPattern
+  private val signInLogOffPattern: Regex      = AtomicPattern.signInLogOffRegexPattern
+  private val rejectPattern: Regex            = AtomicPattern.rejectRegexPattern
+
+  def  extractValues(line: String): Option[AbtractLogLine]={
+    line match {
+      case signInLogOffPattern(c_time2,c_ssThreadId,c_contask,c_conName,c_nASName,c_undefinedText)
+        => return Option(ConnLogLineObject.create(c_time2,c_ssThreadId,c_contask.substring(11,17),c_conName,c_nASName,c_undefinedText))
+
+      case rejectPattern(c_time2,c_ssThreadId,c_contask,c_conName,c_rejectCause,c_rejectResultDetail)
+        => return Option(ConnLogLineObject.create(c_time2,c_ssThreadId,c_contask.substring(11,17),c_conName,c_rejectCause,c_rejectResultDetail))
+      //Fixme!!!! Error here !!!!!
+      case _ => None
+      //case _ => Some(ErroLogLine(line))
+        // Filter di thang nao co thuoc tinh null .
+      //case _ => Option(ConnLogLineObject("","","","","",""))
+    }
+  }
+}
+object subStringTest{
+  def main(args: Array[String]): Unit = {
+    //val stringTest = "Auth-Local:Reject:"
+    val stringTest = "Auth-Local:LogOff:"
+    //val stringTest = "Auth-Local:SignIn:"
+
+    val subString = stringTest.substring(11,17)
+    println(subString)
+  }
+}

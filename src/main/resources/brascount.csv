@@ -1,0 +1,3 @@
+bras_id,signin_total_count,logoff_total_count,reject_total_count,signin_distinct_count,logoff_distinct_count,reject_distinct_count,time
+QNI-MP01-3,12,11,3,4,3,1,2017-05-09 09:11:45
+HCM-MP05-4,13,19,2,4,2,1,2017-05-09 09:11:45
