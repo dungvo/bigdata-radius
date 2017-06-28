@@ -7,6 +7,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.DStream
 import parser.{INFLogParser, InfLogLineObject}
+import storage.es.ElasticSearchDStreamWriter._
 
 /**
   * Created by hungdv on 19/06/2017.
@@ -19,10 +20,7 @@ object ParseAndSave {
     val sc = ss.sparkContext
     val bParser = InfParserBroadcast.getInstance(sc,infParser)
     val objectINFLogs = lines.transform(extractValue(bParser))
-    import storage.es.ElasticSearchDStreamWriter._
-
     objectINFLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "inf","type" -> "rawLog"))
-
 
   }
   def extractValue = (bParser: Broadcast[INFLogParser]) => (lines: RDD[String]) =>
