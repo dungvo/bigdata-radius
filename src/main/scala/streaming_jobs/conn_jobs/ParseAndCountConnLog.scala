@@ -3,8 +3,7 @@ package streaming_jobs.conn_jobs
 import java.sql.Timestamp
 import java.text.SimpleDateFormat
 import java.util
-import java.util.{Calendar, Date, Properties,UUID}
-
+import java.util.{Calendar, Date, Properties, UUID}
 
 import org.apache.log4j.Logger
 import com.datastax.spark.connector.SomeColumns
@@ -27,6 +26,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import core.KafkaProducerFactory
 import core.sinks.KafkaDStreamSinkExceptionHandler
+import org.apache.spark.sql.expressions.Window
 
 //import scala.collection.Map
 import core.streaming.{DurationBoadcast, ParserBoacast}
@@ -104,9 +104,9 @@ object ParseAndCountConnLog {
     val objectConnLogs: DStream[ConnLogLineObject] = lines.transform(extractValue(bConLogParser))
 
     // SAVE TO CASSANDRA
-        objectConnLogs.saveToCassandra(cassandraConfig("keySpace").toString,
+/*        objectConnLogs.saveToCassandra(cassandraConfig("keySpace").toString,
                                        cassandraConfig("table").toString,
-                                       SomeColumns("time","session_id","connect_type","name","content1","content2"))
+                                       SomeColumns("time","session_id","connect_type","name","content1","content2"))*/
     // Save to ES :
     import storage.es.ElasticSearchDStreamWriter._
     //var today = org.joda.time.DateTime.now().toString("yyyy-MM-dd")
@@ -300,8 +300,17 @@ object ParseAndCountConnLog {
 
 
           //SEND TO PowerBI:
+          //val window3 = Window.partitionBy("bras_id").orderBy($"sum".desc)
+          val sumUp = brasCountPivot.withColumn("sum",$"signin_total_count" + $"logoff_total_count")
 
-          val brasCountObjectRDD = brasCountPivot.rdd.map{ row =>
+                                            //.withColumn("rank_sum",rank().over(window3))
+            val top50Sum = sumUp.select(col("bras_id"),col("signin_total_count"),col("logoff_total_count"),col("signin_distinct_count"),col("logoff_distinct_count"),col("time"))
+                                .orderBy(col("sum").desc)
+                                .limit(50)
+            //.where(col("rank_sum") <= lit(50))
+
+          val brasCountObjectRDD = top50Sum.rdd.map{ row =>
+          //val brasCountObjectRDD = brasCountPivot.rdd.map{ row =>
             val brasCount: BrasCountObject = new BrasCountObject(
               row.getAs[String]("bras_id"),
               row.getAs[Long]("signin_total_count").toInt,

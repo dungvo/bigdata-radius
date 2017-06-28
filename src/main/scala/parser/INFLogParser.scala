@@ -14,8 +14,10 @@ class INFLogParser extends AbtractLogParser{
   private val text =  "(.*)"
 
   val time = "(\\d{2}:\\d{2}:\\d{2})"
-  val date = "(\\w{3,}  \\d{1,})"
-  val timeWithDate = "(\\w{3,}  \\d{1,} \\d{2}:\\d{2}:\\d{2})"
+//  val date = "(\\w{3,}  \\d{1,})"
+  val date = "(\\w{3,}\\s{1,}\\d{1,})"
+
+  val timeWithDate = "(\\w{3,}\\s{1,}\\d{1,} \\d{2}:\\d{2}:\\d{2})"
 
   val hostName = "(\\w{4}\\d{5}\\w{2}\\d{2})"
   // search 0 1
@@ -56,7 +58,7 @@ class INFLogParser extends AbtractLogParser{
   }
   def stringToStandardDate(date: String):String ={
     val string = Calendar.getInstance().get(Calendar.YEAR) + " " + date
-    val sdf  = new SimpleDateFormat("yyyy MMM  dd")
+    val sdf  = new SimpleDateFormat("yyyy MMM dd")
     val sdf2 = new SimpleDateFormat("yyyy/MM/dd")
     val date1  = sdf.parse(string)
     val result  = sdf2.format(date1)
@@ -72,17 +74,6 @@ case class InfLogLineObject(
                            val time: String,
                            val module: String
                            ) extends AbtractLogLine{
-/*  def this(logType:String,hostName:String,date:String,time:String,module:String) = {
-     this(logType,hostName,stringToStandardDate(date),time,module)
-  }*/
-  def stringToStandardDate(date: String):String ={
-    val string = Calendar.getInstance().get(Calendar.YEAR) + " " + date
-    val sdf  = new SimpleDateFormat("yyyy MMM  dd")
-    val sdf2 = new SimpleDateFormat("yyyy/MM/dd")
-    val date1  = sdf.parse(string)
-    val result  = sdf2.format(date1)
-    result.toString
-  }
 
 }
 object DateAndTimeTest{
@@ -90,7 +81,7 @@ object DateAndTimeTest{
 
     val string = Calendar.getInstance().get(Calendar.YEAR) + " Jun  1"
     println(string)
-    val sdf  = new SimpleDateFormat("yyyy MMM  dd")
+    val sdf  = new SimpleDateFormat("yyyy MMM dd")
     val sdf2 = new SimpleDateFormat("yyyy/MM/dd")
     val date  = sdf.parse(string)
     println(date)
@@ -104,7 +95,8 @@ object DateAndTimeTest{
       "<134>0000152007: Jun  1 07:39:28: HNIP51601GC57: %ONTMNT-6-Informational: 11939729:83: 2017/06/01 07:39:28 ont 0/3/117 FPTT1690202f power off",
       "<133>0000142260: Jun  1 21:28:47: HNIP31102GC57: %DEVICE-5-POWER-MANAGE: Power running no good detected, power NO : 1.",
       "<133>0000160516: Jun  2 00:14:19: HNIP35201GC57: %OAM-5-CPU_BUSY: cpu is busy.",
-      "<133>0000160516: Jun  2 00:14:19: HNIP35201GC57: %OAM-5-RELOAD_SUCCESSFULLY: reboot device successfully"
+      "<133>0000160516: Jun  2 00:14:19: HNIP35201GC57: %OAM-5-RELOAD_SUCCESSFULLY: reboot device successfully",
+      "<190>0001064412: 0001304034: Jun 27 12:34:34: HCMP34204GC57: %ONTMNT-6-Informational: 49372214:56: 2017/06/27 12:34:34 ont 0/3/67 CIGGf4306498 deregister reason sf"
     )
 
     val parser = new INFLogParser
@@ -115,7 +107,8 @@ object DateAndTimeTest{
     }
 
 
-    var count = 0
+    var count : Int= 0
+    var error : Int= 0
 
     //val rdacFile = new RandomAccessFile("/home/hungdv/infmb-2017-06-01_first100k.txt","rw")
 /*
@@ -130,16 +123,22 @@ object DateAndTimeTest{
     }
 */
 
-    val path: Path = java.nio.file.Paths.get("/home/hungdv/infmb-2017-06-01_first100k.txt")
+    val path: Path = java.nio.file.Paths.get("/home/hungdv/inf_message_debug.log")
+    //val path: Path = java.nio.file.Paths.get("/home/hungdv/inf_deregister.log")
+    //val path: Path = java.nio.file.Paths.get("/home/hungdv/infmb-2017-06-01_first100k.txt")
     val lines: util.List[String] = Files.readAllLines(path,StandardCharsets.UTF_8)
     val total = lines.size()
     for(a <- 0 until total){
       val string = lines.get(a)
       val parsed = parser.extractValues(string)
-      if (parsed == None){count + 1}
-      else println(parsed.get)
+   /*   if (parsed != None){count + 1}
+      else println(parsed.get)*/
+      parsed match{
+        case Some(x) =>{ count = count.+(1)}
+        case _ => error = error.+(1)
+      }
     }
-    println("count/total : " + count + " / " + total)
+    println("count/total/error : " + count + " / " + total + "/" + error)
 
   }
 }

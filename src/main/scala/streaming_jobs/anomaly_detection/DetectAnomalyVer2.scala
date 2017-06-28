@@ -111,42 +111,48 @@ object DetectAnomalyVer2 {
         //.where($"outlier" > lit(0) && col("time_ranking") === lit(1))
         println("RESULT FILTERD-------------------------------------------------------")
         result2.show()
-
-        val outlierObjectRDD = result2.rdd.map { row =>
-          val outlier = new BrasCoutOutlier(
-            row.getAs[String]("bras_id"),
-            row.getAs[Int]("signin_total_count"),
-            row.getAs[Int]("logoff_total_count"),
-            row.getAs[Double]("rateSL"),
-            row.getAs[Double]("rateLS"),
-            row.getAs[java.sql.Timestamp]("time")
-          )
-          outlier
-        }
-        println("SEND DATA TO BI -----------------------------------------------------")
-        import org.elasticsearch.spark._
-        outlierObjectRDD.foreachPartition { partition =>
-          if (partition.hasNext) {
-            val arrayListType = new TypeToken[java.util.ArrayList[BrasCoutOutlier]]() {}.getType
-            val gson = new Gson()
-            val metrics = new util.ArrayList[BrasCoutOutlier]()
-            partition.foreach(bras => metrics.add(bras))
-            val metricsJson = gson.toJson(metrics, arrayListType)
-            println("METRICS : " + metricsJson )
-            val http = Http(bPowerBIURL.value).proxy(bPowerBIProxyHost.value, 80)
-            try {
-              val result = http.postData(metricsJson)
-                .header("Content-Type", "application/json")
-                .header("Charset", "UTF-8")
-                .option(HttpOptions.readTimeout(15000)).asString
-              println(s"Send Outlier metrics to PowerBi - Statuscode : ${result.statusLine}.")
-              logger.warn(s"Send Outlier metrics to PowerBi - Statuscode : ${result.statusLine}.")
-            } catch {
-              case e: java.net.SocketTimeoutException => logger.error(s"Time out Exception when sending Outlier result to BI")
-              case _: Throwable => println("Just ignore this shit.")
+        try{
+          val outlierObjectRDD = result2.rdd.map { row =>
+            val outlier = new BrasCoutOutlier(
+              row.getAs[String]("bras_id"),
+              row.getAs[Int]("signin_total_count"),
+              row.getAs[Int]("logoff_total_count"),
+              row.getAs[Double]("rateSL"),
+              row.getAs[Double]("rateLS"),
+              row.getAs[java.sql.Timestamp]("time")
+            )
+            println("OUTLIER : ---------------------------------------------------------")
+            println(outlier)
+            outlier
+          }
+          println("SEND  TO BI -----------------------------------------------------")
+          import org.elasticsearch.spark._
+          outlierObjectRDD.foreachPartition { partition =>
+            if (partition.hasNext) {
+              val arrayListType = new TypeToken[java.util.ArrayList[BrasCoutOutlier]]() {}.getType
+              val gson = new Gson()
+              val metrics = new util.ArrayList[BrasCoutOutlier]()
+              partition.foreach(bras => metrics.add(bras))
+              val metricsJson = gson.toJson(metrics, arrayListType)
+              println("METRICS : " + metricsJson )
+              val http = Http(bPowerBIURL.value).proxy(bPowerBIProxyHost.value, 80)
+              try {
+                val result = http.postData(metricsJson)
+                  .header("Content-Type", "application/json")
+                  .header("Charset", "UTF-8")
+                  .option(HttpOptions.readTimeout(15000)).asString
+                println(s"Send Outlier metrics to PowerBi - Statuscode : ${result.statusLine}.")
+                logger.warn(s"Send Outlier metrics to PowerBi - Statuscode : ${result.statusLine}.")
+              } catch {
+                case e: java.net.SocketTimeoutException => logger.error(s"Time out Exception when sending Outlier result to BI")
+                case _: Throwable => println("Just ignore this shit.")
+              }
             }
           }
+        }catch{
+          case e : Throwable => println("ERROR IN SENDING BLOCK !!---------------------------------------------------")
         }
+
       //ES -Mongo -Cassandra
       //outlierObjectRDD.saveToEs("radius_oulier_detect")
     }

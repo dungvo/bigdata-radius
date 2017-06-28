@@ -3,6 +3,7 @@ package streaming_jobs.inf_jobs
 import com.typesafe.config.{Config, ConfigFactory}
 import core.sources.KafkaDStreamSource
 import core.streaming.{SparkLogLevel, SparkStreamingApplication}
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.streaming.dstream.DStream
 
 import scala.concurrent.duration.FiniteDuration
@@ -21,7 +22,7 @@ class ParseInfJob(config: InfParserConfig,source: KafkaDStreamSource)extends Spa
     withSparkStreamingContext { (ss, ssc) =>
       val input: DStream[String] = source.createSource(ssc, config.inputTopic)
       val infParser = new parser.INFLogParser
-      ParseAndSave.parseAndSave(
+      ParseAndSaveInf.parseAndSave(
         ssc,ss,input,infParser
       )
     }
@@ -30,7 +31,8 @@ class ParseInfJob(config: InfParserConfig,source: KafkaDStreamSource)extends Spa
 
 object InfJob{
   def main(args: Array[String]): Unit = {
-
+    Logger.getLogger("org").setLevel(Level.OFF)
+    Logger.getLogger("akka").setLevel(Level.OFF)
     SparkLogLevel.setStreamingLogLevels()
     val config = InfParserConfig()
     val infJob = new ParseInfJob(config,KafkaDStreamSource(config.souceKafka))
