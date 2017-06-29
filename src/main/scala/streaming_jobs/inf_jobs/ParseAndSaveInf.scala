@@ -17,110 +17,69 @@ object ParseAndSaveInf {
   def parseAndSave(ssc: StreamingContext,
                    ss: SparkSession,
                    kafkaMessages: DStream[String],
-                   infParser: INFLogParser): Unit ={
+                   infParser: INFLogParser): Unit = {
     val sc = ss.sparkContext
-    val bParser = InfParserBroadcast.getInstance(sc,infParser)
+    val bParser = InfParserBroadcast.getInstance(sc, infParser)
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    val lines = kafkaMessages.transform(extractMessage("message",bParser))
-                                                //.transform(extractValue(bParser))
-
-    lines.foreachRDD{
-     rdd => rdd.foreach{println(_)}
-   }
-    /*val objectINFLogs: DStream[InfLogLineObject] = lines.transform(extractValue(bParser))
-    objectINFLogs.foreachRDD{rdd =>
-      println("Count :" +  rdd.count())
-      rdd.foreach(println(_))
-    }*/
-
-    //kafkaMessages.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "inf-raw-test","type" -> "rawLog"))
-/*    val lines: DStream[String] = kafkaMessages.map{
-      json =>
-        val mapOfRawLogObject: Map[String, Any] = jsonStrToMap(json)
-        val msg = mapOfRawLogObject.get("message").getOrElse(null)
-        msg.asInstanceOf[String]
-    }.filter(msg => msg!= null)
-    lines.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "inf-parsed-test","type" -> "rawLog"))
-
+    val lines = kafkaMessages.transform(extractMessageAndValue("message", bParser))
+    lines.persistToStorageDaily(Predef.Map[String, String]("indexPrefix" -> "inf", "type" -> "rawLog"))
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////// THE SAME WAY AS ABOVE
+    /*lines.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "inf-parsed-test","type" -> "rawLog"))
+    val lines = kafkaMessages.transform(extractMessage("message")
     val objectINFLogs: DStream[InfLogLineObject] = lines.transform(extractValue(bParser))
     objectINFLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "inf-parsed","type" -> "rawLog"))*/
-    //lines.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "inf-test","type" -> "rawLog"))
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  /*  kafkaMessages.foreachRDD{
-      rdd => {
-        rdd.map{
-          json =>
-            val mapOfRawLogObject: Map[String, Any] = jsonStrToMap(json)
-            val msg = mapOfRawLogObject.get("message").getOrElse(null)
-            msg.asInstanceOf[String]
-        }.filter(msg => msg!= null)
-          .map{ line =>
-            val parserObject = bParser.value.extractValues(line).getOrElse(None)
-            parserObject match{
-              case Some(x) => x
-              //case Some(x) => x.asInstanceOf[parser.InfLogLineObject]
-              case _ => None
-            }
-            //System.out.println("parsed : " + line)
-            parserObject
-          }.filter(x => x!= None).map(ob => ob.asInstanceOf[InfLogLineObject])
-      }
-    }*/
-
   }
-  def jsonStrToMap(jsonStr: String) :Map[String,Any] ={
 
+  /**
+    * Extract a field from Json Message.
+    * @param jsonStr
+    * @return
+    */
+  def jsonStrToMap(jsonStr: String): Map[String, Any] = {
     implicit val formats = org.json4s.DefaultFormats
-
-    parse(jsonStr).extract[Map[String,Any]]
-
+    parse(jsonStr).extract[Map[String, Any]]
   }
+
   /**
     * Extract message field from kafka message {"message":"content....."}
     * transformFunctionName = (params) => [(Source) => a tranformation]
-   */
-/*  def extractMessage = (key: String) => (mesgs: RDD[String]) => mesgs.map{
+    */
+  def extractMessage = (key: String) => (mesgs: RDD[String]) => mesgs.map {
     msg =>
       implicit val formats = org.json4s.DefaultFormats
-      val value = parse(msg).extract[Map[String,Any]].get(key).getOrElse(null)
+      val value = parse(msg).extract[Map[String, Any]].get(key).getOrElse(null)
       value.asInstanceOf[String]
-  }.filter(value => value != null)*/
-def extractMessage = (key: String,bParser: Broadcast[INFLogParser]) => (mesgs: RDD[String]) => mesgs.map{
-  msg =>
+  }.filter(value => value != null)
+
+  def extractMessageAndValue = (key: String, bParser: Broadcast[INFLogParser]) => (mesgs: RDD[String]) => mesgs.map { msg =>
     implicit val formats = org.json4s.DefaultFormats
-    val value = parse(msg).extract[Map[String,Any]].get(key).getOrElse(null)
+    val value = parse(msg).extract[Map[String, Any]].get(key).getOrElse(null)
     value.asInstanceOf[String]
-}.filter(value => value != null)
-  .map{ line =>
-  val parserObject = bParser.value.extractValues(line).getOrElse(None)
-  parserObject match{
-    case Some(x) => x
-    case _ => None
-  }
-  parserObject
-}.filter(x => x!= None).map(ob => ob.asInstanceOf[InfLogLineObject])
-
-
+  }.filter(value => value != null).map { line =>
+    val parserObject = bParser.value.extractValues(line.replace("\n", "").replace("\r", "")).getOrElse(None)
+    parserObject match {
+      case Some(x) => x
+      case _ => None
+    }
+    parserObject
+    // NOTICE !!!!!!
+    //println("1-"+line.replaceAll("^\\s|\n\\s|\\s$", "") + "-END")
+    //println("2-"+line.trim().replaceAll("\n ", "") + "-END")
+    //println("3-"+line.replace("\n", "").replace("\r", "") + "-END")
+  }.filter(x => x != None).map(ob => ob.asInstanceOf[InfLogLineObject])
 
 
   def extractValue = (bParser: Broadcast[INFLogParser]) => (lines: RDD[String]) =>
     lines
-/*      .map{ json =>
-          val mapOfRawLogObject: Map[String, Any] = jsonStrToMap(json)
-          val msg = mapOfRawLogObject.get("message").getOrElse(null)
-          msg.asInstanceOf[String]
-         }.filter(msg => msg!= null)*/
-      .map{ line =>
+      .map { line =>
         val parserObject = bParser.value.extractValues(line).getOrElse(None)
-        parserObject match{
+        parserObject match {
           case Some(x) => x
           //case Some(x) => x.asInstanceOf[parser.InfLogLineObject]
           case _ => None
         }
-        //System.out.println("parsed : " + line)
         parserObject
-    }.filter(x => x!= None).map(ob => ob.asInstanceOf[InfLogLineObject])
+      }.filter(x => x != None).map(ob => ob.asInstanceOf[InfLogLineObject])
 }
-

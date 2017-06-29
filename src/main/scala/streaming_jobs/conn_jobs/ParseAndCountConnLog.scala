@@ -309,7 +309,7 @@ object ParseAndCountConnLog {
                                 .limit(50)
             //.where(col("rank_sum") <= lit(50))
 
-          val brasCountObjectRDD = top50Sum.rdd.map{ row =>
+          val brasCountObjectRDDTop50 = top50Sum.rdd.map{ row =>
           //val brasCountObjectRDD = brasCountPivot.rdd.map{ row =>
             val brasCount: BrasCountObject = new BrasCountObject(
               row.getAs[String]("bras_id"),
@@ -321,14 +321,28 @@ object ParseAndCountConnLog {
             )
             brasCount
           }
+
+          val brasCountObjectRDD = brasCountPivot.rdd.map{ row =>
+            //val brasCountObjectRDD = brasCountPivot.rdd.map{ row =>
+            val brasCount: BrasCountObject = new BrasCountObject(
+              row.getAs[String]("bras_id"),
+              row.getAs[Long]("signin_total_count").toInt,
+              row.getAs[Long]("logoff_total_count").toInt,
+              row.getAs[Long]("signin_distinct_count").toInt,
+              row.getAs[Long]("logoff_distinct_count").toInt,
+              row.getAs[java.sql.Timestamp]("time")
+            )
+            brasCount
+          }
+
           var brasCountIndex = "count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
           var brasCountType = "bras_count"
 
           // Make rdd from sequence then save to postgres
           //SAVE TO ES
           brasCountObjectRDD.saveToEs("count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) + "/" + brasCountType)
-          // Send to PowerBI and KAFKA
-          brasCountObjectRDD.foreachPartition{partition =>
+          // Send to Top  50 To PowerBI
+          brasCountObjectRDDTop50.foreachPartition{partition =>
             val copy = partition
 
             // Maybe we have many null partitions.
@@ -367,7 +381,7 @@ object ParseAndCountConnLog {
 
             }
           }
-          // We need to iterator twitte
+          // Send All bras count to Kafka
           brasCountObjectRDD.foreachPartition{partition =>
             if(partition.hasNext){
               val producer: KafkaProducer[String,String] = KafkaProducerFactory.getOrCreateProducer(bProducerConfig.value)

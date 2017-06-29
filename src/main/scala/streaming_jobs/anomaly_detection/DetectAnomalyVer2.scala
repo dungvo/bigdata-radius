@@ -113,17 +113,24 @@ object DetectAnomalyVer2 {
         result2.show()
         try{
           val outlierObjectRDD = result2.rdd.map { row =>
-            val outlier = new BrasCoutOutlier(
-              row.getAs[String]("bras_id"),
-              row.getAs[Int]("signin_total_count"),
-              row.getAs[Int]("logoff_total_count"),
-              row.getAs[Double]("rateSL"),
-              row.getAs[Double]("rateLS"),
-              row.getAs[java.sql.Timestamp]("time")
-            )
-            println("OUTLIER : ---------------------------------------------------------")
-            println(outlier)
-            outlier
+            try{
+              val outlier = new BrasCoutOutlier(
+                row.getAs[String]("bras_id"),
+                row.getAs[Int]("signin_total_count"),
+                row.getAs[Int]("logoff_total_count"),
+                row.getAs[Double]("rateSL"),
+                row.getAs[Double]("rateLS"),
+                row.getAs[java.sql.Timestamp]("time")
+              )
+              println("OUTLIER : ---------------------------------------------------------")
+              println(outlier)
+              outlier
+            }catch {
+              case e: Exception => {println("ERROR IN PARSING BLOCK + "+e.printStackTrace()) ;
+                                    BrasCoutOutlier("n/a",0,0,0,0,new Timestamp(0))}
+              //case _: Throwable => println("Throwable ")
+            }
+
           }
           println("SEND  TO BI -----------------------------------------------------")
           import org.elasticsearch.spark._
@@ -150,7 +157,7 @@ object DetectAnomalyVer2 {
             }
           }
         }catch{
-          case e : Throwable => println("ERROR IN SENDING BLOCK !!---------------------------------------------------")
+          case e : Throwable => println("ERROR IN SENDING BLOCK !!---------------------------------------------------" + e.printStackTrace())
         }
 
       //ES -Mongo -Cassandra
