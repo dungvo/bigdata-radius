@@ -101,7 +101,6 @@ object DetectAnomalyVer2 {
         /*val result = iqr.withColumn("outlier",when(($"detrendSL" > $"upper_iqr_SL" )
                                || ($"detrendLS" > $"upper_iqr_LS" ),1).otherwise(0))*/
         println("RESULT-------------------------------------------------------")
-        val brasthreshold = spark.sql(s"SELECT * FROM ")
         //result.show(40)
         import org.elasticsearch.spark.sql._
         //result.saveToES("")
@@ -117,7 +116,7 @@ object DetectAnomalyVer2 {
         }
         brasIdsString = brasIdsString.dropRight(1) + ")"
         val theshold = spark.sql(s"Select * from bras_theshold WHERE bras_id IN $brasIdsString")
-        val result3 = result2.join(theshold,col("bras_id")).select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time")
+        val result3 = result2.as("r").join(theshold.as("t"),Seq("bras_id")).select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time")
                              .where($"signin_total_count" >= $"threshold_signin" || $"logoff_total_count" >= $"threshold_logoff")
 
         //.where($"outlier" > lit(0) && col("time_ranking") === lit(1))

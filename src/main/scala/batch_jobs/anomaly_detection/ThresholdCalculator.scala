@@ -21,7 +21,7 @@ object ThresholdCalculator {
     Logger.getLogger("akka").setLevel(Level.OFF)
     val logger = Logger.getLogger(getClass)
 
-    val sparkConf = new SparkConf().set("spark.cassandra.connection.host","localhost")
+    val sparkConf = new SparkConf().set("spark.cassandra.connection.host","172.27.11.156")
                                    .set("spark.cassandra.output.batch.size.rows","auto")
 
     val sparkSession = SparkSession.builder().appName("batch_jobs.CalculateBrasThreshold")

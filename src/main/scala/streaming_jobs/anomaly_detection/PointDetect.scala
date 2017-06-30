@@ -27,7 +27,7 @@ class PointDetect(config: PointDetectConfig,source: KafkaDStreamSource) extends 
              pushdown "true")"""
 
         val createDLLBrasThreshold  =
-          """CREATE TEMPORARY VIEW brasscountthreshold
+          """CREATE TEMPORARY VIEW bras_theshold
              USING org.apache.spark.sql.cassandra
              OPTIONS (
              table "bras_theshold",
