@@ -18,7 +18,7 @@ import com.google.gson.reflect.TypeToken
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.broadcast.Broadcast
 import org.joda.time.DateTime
-
+import util.DatetimeController
 import scala.concurrent.duration.FiniteDuration
 import java.util
 /**
@@ -101,6 +101,7 @@ object DetectAnomalyVer2 {
         /*val result = iqr.withColumn("outlier",when(($"detrendSL" > $"upper_iqr_SL" )
                                || ($"detrendLS" > $"upper_iqr_LS" ),1).otherwise(0))*/
         println("RESULT-------------------------------------------------------")
+        val brasthreshold = spark.sql(s"SELECT * FROM ")
         //result.show(40)
         import org.elasticsearch.spark.sql._
         //result.saveToES("")
@@ -108,11 +109,22 @@ object DetectAnomalyVer2 {
           //.where($"outlier" > lit(0))
           //TODO uncomment this on  production mode
           .where($"outlier" > lit(0) && col("rank_time") === lit(1))
+        val brasids = result2.select("bras_id").rdd.map(r => r(0)).collect()
+        var brasIdsString = "("
+        brasids.foreach{x =>
+          val y = "'" + x + "',"
+          brasIdsString = brasIdsString + y
+        }
+        brasIdsString = brasIdsString.dropRight(1) + ")"
+        val theshold = spark.sql(s"Select * from bras_theshold WHERE bras_id IN $brasIdsString")
+        val result3 = result2.join(theshold,col("bras_id")).select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time")
+                             .where($"signin_total_count" >= $"threshold_signin" || $"logoff_total_count" >= $"threshold_logoff")
+
         //.where($"outlier" > lit(0) && col("time_ranking") === lit(1))
         println("RESULT FILTERD-------------------------------------------------------")
-        result2.show()
+        result3.show()
         try{
-          val outlierObjectRDD = result2.rdd.map { row =>
+          val outlierObjectRDD = result3.rdd.map { row =>
             try{
               val outlier = new BrasCoutOutlier(
                 row.getAs[String]("bras_id"),
@@ -121,6 +133,8 @@ object DetectAnomalyVer2 {
                 row.getAs[Double]("rateSL"),
                 row.getAs[Double]("rateLS"),
                 row.getAs[java.sql.Timestamp]("time")
+                //,
+                //DatetimeController.sqlTimeStampToNumberFormat(row.getAs[java.sql.Timestamp]("time"))
               )
               println("OUTLIER : ---------------------------------------------------------")
               println(outlier)
@@ -180,4 +194,5 @@ case class BrasCoutOutlier(bras_id: String,
                            rateSL: Double,
                            rateLS: Double,
                            time: Timestamp
+                           //timeInNumber: Float
                           ) extends Serializable{}

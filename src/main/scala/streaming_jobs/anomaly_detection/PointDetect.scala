@@ -25,8 +25,17 @@ class PointDetect(config: PointDetectConfig,source: KafkaDStreamSource) extends 
              table "brasscount",
              keyspace "radius",
              pushdown "true")"""
+
+        val createDLLBrasThreshold  =
+          """CREATE TEMPORARY VIEW brasscountthreshold
+             USING org.apache.spark.sql.cassandra
+             OPTIONS (
+             table "bras_theshold",
+             keyspace "radius",
+             pushdown "true")"""
         val spark = sc.sqlContext
         spark.sql(createDDL)
+        spark.sql(createDLLBrasThreshold)
     /*    DetectAnomaly.detect(ssc,
           sc,
           input,

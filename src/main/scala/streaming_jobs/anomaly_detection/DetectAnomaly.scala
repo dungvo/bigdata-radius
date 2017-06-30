@@ -28,6 +28,7 @@ import org.joda.time.DateTime
 import org.joda.time.format.DateTimeFormat
 import streaming_jobs.conn_jobs.ParseAndCountConnLog.getClass
 import org.elasticsearch.spark.sql._
+
 /**
   * Created by hungdv on 12/06/2017.
   */
@@ -100,6 +101,8 @@ object DetectAnomaly {
                row.getAs[Double]("rateSL"),
                row.getAs[Double]("rateLS"),
                row.getAs[java.sql.Timestamp]("time")
+               //,
+               //0
              )
              outlier
            }

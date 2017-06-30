@@ -5,13 +5,14 @@ import java.text.SimpleDateFormat
 import java.util
 import java.util.{Calendar, Date, Properties, UUID}
 
-import org.apache.log4j.Logger
+import org.apache.spark.sql.cassandra._
+import org.apache.log4j.{Level, Logger}
 import com.datastax.spark.connector.SomeColumns
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.{Duration, StreamingContext, Time}
 import org.apache.spark.streaming.dstream.DStream
-import org.apache.spark.{Accumulable, SparkContext, TaskContext}
+import org.apache.spark.{Accumulable, SparkConf, SparkContext, TaskContext}
 import org.apache.spark.sql._
 import parser.{AbtractLogLine, ConnLogLineObject, ConnLogParser}
 import com.datastax.spark.connector.streaming._
@@ -167,11 +168,8 @@ object ParseAndCountConnLog {
       .foreachRDD{rdd =>
 
         //Save Conn Counting to Es
-        //var indexName = "radius-" + today
-        //val indexName = "radius-test-" + today
         var typeName  = "conn_counting"
         rdd.saveToEs("radius-" + org.joda.time.DateTime.now().toString("yyyy-MM-dd") + "/" + typeName)
-        //rdd.saveToEs(indexName + "/" + typeName)
 
         // Write config should put in SparkConfig.
         //This still a reliable way to write from a stream to mongo.
@@ -210,6 +208,15 @@ object ParseAndCountConnLog {
         val brasInfo = rdd.filter(line => line.connect_type != ConnectTypeEnum.Reject.toString)
                             .toDF("time","session_id","connect_type","name","content1","content2")
                             .select("name","connect_type","content1")
+        //TODO : Mapping hostname -brastogether.
+        // Select name and BrasName where connect type == signin
+        val brasAndHost: DataFrame = brasInfo.select("name","content1").where(col("connect_type") === "SignIn")
+                                    .withColumn("host",sqlLookup(col("name")))
+                                    .withColumnRenamed("content1","bras_id")
+                                    .select("bras_id","host")
+        //Save to cassandra -- table - keyspace - cluster.
+        //TODO : HARDCODE !!!!!!
+        brasAndHost.write.mode("append").cassandraFormat("brashostmapping","radius","test").save()
        /* val timeFunc: (AnyRef => String) = (arg: AnyRef) => {
           getCurrentTime()
         }
@@ -335,12 +342,13 @@ object ParseAndCountConnLog {
             brasCount
           }
 
-          var brasCountIndex = "count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
-          var brasCountType = "bras_count"
+
 
           // Make rdd from sequence then save to postgres
           //SAVE TO ES
-          brasCountObjectRDD.saveToEs("count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) + "/" + brasCountType)
+          //var brasCountIndex = "count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
+          //var brasCountType = "bras_count"
+          //brasCountObjectRDD.saveToEs("count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) + "/" + brasCountType)
           // Send to Top  50 To PowerBI
           brasCountObjectRDDTop50.foreachPartition{partition =>
             val copy = partition
@@ -496,8 +504,10 @@ object ParseAndCountConnLog {
           val infCountIndex = "count_by_inf-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
           val infCountType = "inf_count"
           // Make rdd from sequence then save to postgres
+          ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
           //SAVE TO ES
           infCountObjectRDD.saveToEs("count_by_inf-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) + "/" + infCountType)
+          ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
           // Traveser rdd.foreachPartition -> add element to metrics Array
           //TODO Uncomment this block to ENABLE sending inf metric to power BI
           //TODO : Begin
@@ -519,6 +529,7 @@ object ParseAndCountConnLog {
             }
           }*/
           //TODO : End
+
           // OLD VERSION 1.0
           /*val infMetrics = new util.ArrayList[InfCountObject]()
           infCountPivot.rdd.foreachPartition { partition =>
@@ -563,10 +574,9 @@ object ParseAndCountConnLog {
           //PostgresIO.writeToPostgres(ss,infCountPivot,bJdbcURL.value,"inf_count",SaveMode.Append,bPgProperties.value)
         }*/
 
+
       }
     })
-    
-      //rdd.map()
   }
 
 
@@ -625,3 +635,21 @@ object dateTimeTest{
 }
 */
 
+object SaveToCassTest{
+
+  def main(args: Array[String]): Unit = {
+    Logger.getLogger("org").setLevel(Level.OFF)
+    Logger.getLogger("akka").setLevel(Level.OFF)
+    val sparkConfig = new SparkConf().set( "spark.cassandra.connection.host" , "localhost")
+      .set("spark.cassandra.output.batch.size.rows" , "auto")
+    val sparkSession = SparkSession.builder().appName("wirteCTest").master("local[2]").config(sparkConfig).getOrCreate()
+    //val rdd = sparkSession.sparkContext.parallelize(Seq(("Bras1","Host1"),("Bras2","Host2"),("Bras3","Host3"),("Bras4","Host4"),("Bras5","Host5")))
+    val rdd = sparkSession.sparkContext.parallelize(Seq(("BrasC","HostCC"),("BrasB","HostBB")))
+    import sparkSession.implicits._
+    val df = rdd.toDF("bras_id","host")
+    df.write.mode("append").cassandraFormat("brashostmapping","radius","test").save()
+    // TODO never use overwrite mode.
+    //df.write.mode("overwrite").cassandraFormat("brashostmapping","radius","test").save()
+
+  }
+}

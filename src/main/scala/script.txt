@@ -1,0 +1,35 @@
+sudo docker run -it --link some-cassandra:cassandra --rm cassandra sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR"'
+
+
+viewing log :
+sudo docker exec -it some-cassandra bash
+sudo docker logs some-cassandra
+
+
+
+cli:
+describe tables;
+describe keyspaces;
+
+
+start C* docker container
+sudo docker run --name some-cassandra -p 9042:9042 -d cassandra:latest
+
+Connect to Cassandra from cqlsh
+sudo docker run -it --link some-cassandra:cassandra --rm cassandra sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR"'
+
+CREATE KEYSPACE radius WITH REPLICATION = { 'class' : 'SimpleStrategy','replication_factor' : 1};
+
+-> DESCRIBE keyspaces;
+-> use radius;
+
+CREATE TABLE connLog (time text, session_id text,connect_type text,name text,content1 text,content2 text, PRIMARY KEY(time,session_id));
+
+//"time","session_id","connect_type","name","content1","content2"
+
+-> DESCRIBE table radius.connLog;
+
+CREATE TABLE brasscount(bras_id text,signin_total_count int,logoff_total_count int,signin_distinct_count int,logoff_distinct_count int,time timestamp,PRIMARY KEY(time,bras_id));
+CREATE TABLE brashostmapping(bras_id text,host text,PRIMARY KEY(host));
+
+CREATE TABLE bras_theshold(bras_id text,threshold_signin int,threshold_logoff int,PRIMARY KEY(bras_id));
