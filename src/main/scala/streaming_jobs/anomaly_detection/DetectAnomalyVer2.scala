@@ -117,7 +117,7 @@ object DetectAnomalyVer2 {
         brasIdsString = brasIdsString.dropRight(1) + ")"
         val theshold = spark.sql(s"Select * from bras_theshold WHERE bras_id IN $brasIdsString")
         val result3 = result2.as("r").join(theshold.as("t"),Seq("bras_id")).select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time")
-                             .where($"signin_total_count" >= $"threshold_signin" || $"logoff_total_count" >= $"threshold_logoff")
+                             .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
 
         //.where($"outlier" > lit(0) && col("time_ranking") === lit(1))
         println("RESULT FILTERD-------------------------------------------------------")
@@ -131,16 +131,15 @@ object DetectAnomalyVer2 {
                 row.getAs[Int]("logoff_total_count"),
                 row.getAs[Double]("rateSL"),
                 row.getAs[Double]("rateLS"),
-                row.getAs[java.sql.Timestamp]("time")
-                //,
-                //DatetimeController.sqlTimeStampToNumberFormat(row.getAs[java.sql.Timestamp]("time"))
+                row.getAs[java.sql.Timestamp]("time"),
+                DatetimeController.sqlTimeStampToNumberFormat(row.getAs[java.sql.Timestamp]("time"))
               )
               println("OUTLIER : ---------------------------------------------------------")
               println(outlier)
               outlier
             }catch {
               case e: Exception => {println("ERROR IN PARSING BLOCK + "+e.printStackTrace()) ;
-                                    BrasCoutOutlier("n/a",0,0,0,0,new Timestamp(0))}
+                                    BrasCoutOutlier("n/a",0,0,0,0,new Timestamp(0),0)}
               //case _: Throwable => println("Throwable ")
             }
 
@@ -192,6 +191,6 @@ case class BrasCoutOutlier(bras_id: String,
                            logoff_total_count :Int,
                            rateSL: Double,
                            rateLS: Double,
-                           time: Timestamp
-                           //timeInNumber: Float
+                           time: Timestamp,
+                           timeInNumber: Float
                           ) extends Serializable{}

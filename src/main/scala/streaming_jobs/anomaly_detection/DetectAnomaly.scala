@@ -100,9 +100,8 @@ object DetectAnomaly {
                row.getAs[Int]("logoff_total_count"),
                row.getAs[Double]("rateSL"),
                row.getAs[Double]("rateLS"),
-               row.getAs[java.sql.Timestamp]("time")
-               //,
-               //0
+               row.getAs[java.sql.Timestamp]("time"),
+               0
              )
              outlier
            }
