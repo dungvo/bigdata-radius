@@ -207,7 +207,7 @@ object ParseAndCountConnLog {
         ////////////////////////////////////////////////////////////////////////////////////////////////////////
         val brasInfo = rdd.filter(line => line.connect_type != ConnectTypeEnum.Reject.toString)
                             .toDF("time","session_id","connect_type","name","content1","content2")
-                            .select("name","connect_type","content1")
+                            .select("name","connect_type","content1").cache()
         //TODO : Mapping hostname -brastogether.
         // Select name and BrasName where connect type == signin
         val brasAndHost: DataFrame = brasInfo.select("name","content1").where(col("connect_type") === "SignIn")
@@ -222,7 +222,7 @@ object ParseAndCountConnLog {
         }
         val sqlTimeFunc = udf(timeFunc)*/
         val brasCount = brasInfo.groupBy(col("content1"),col("connect_type"))
-          .agg(count(col("name")).as("count_by_bras"),countDistinct(col("name")).as("count_distinct_by_bras"))
+          .agg(count(col("name")).as("count_by_bras"),countDistinct(col("name")).as("count_distinct_by_bras")).cache()
 
          val brasCountTotalPivot =  brasCount.groupBy("content1").pivot("connect_type",bConnectType.value)
                                                 .agg(expr("coalesce(first(count_by_bras),0)"))
@@ -238,7 +238,7 @@ object ParseAndCountConnLog {
                                                //.withColumn("time",sqlTimeFunc(col("content1")))
                                                .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
                                                .withColumnRenamed("content1","bras_id")
-                                               //.cache()
+                                               .cache()
 
         //println(s"========= $time_ =========")
         if(brasCountPivot.count() > 0) {
@@ -480,7 +480,7 @@ object ParseAndCountConnLog {
 
         val infCountPivot = infCountTotalPivot.join(infCountDistinctPivot,"host")
           //.withColumn("time",sqlTimeFunc(col("host")))
-          .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+          .withColumn("time",org.apache.spark.sql.functions.current_timestamp()).cache()
           //.withColumn("time",org.apache.spark.sql.functions.current_timestamp())
           //.withColumnRenamed("content1","bras_id")
 
@@ -576,6 +576,12 @@ object ParseAndCountConnLog {
 
 
       }
+        brasInfo.unpersist()
+        brasCount.unpersist()
+        brasCountPivot.unpersist()
+        infCountPivot.unpersist()
+
+
     })
   }
 

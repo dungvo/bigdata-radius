@@ -55,10 +55,10 @@ object DetectAnomalyVer2 {
         val now = System.currentTimeMillis()
         val timestamp = new org.joda.time.DateTime(now).minusMinutes(30).toString("yyyy-MM-dd HH:mm:ss.SSS")
 
-        val brasCounDFRaw = spark.sql(s"SELECT * FROM brasscount WHERE time > '$timestamp'")
+        val brasCounDFRaw = spark.sql(s"SELECT * FROM brasscount WHERE time > '$timestamp'").cache()
         println("COUNTRAW :" + brasCounDFRaw.count())
         val brasCounDFrank = brasCounDFRaw.withColumn("rank_time",rank().over(window3))
-        val brasCounDF= brasCounDFrank.select("*").where(col("rank_time") <= lit(15))
+        val brasCounDF= brasCounDFrank.select("*").where(col("rank_time") <= lit(15)).cache()
         println()
         println("COUNT :" + brasCounDF.count())
         println("TIME :" + timestamp)
@@ -100,14 +100,17 @@ object DetectAnomalyVer2 {
           //.where($"bras_id" === "BLC-MP01-2" || $"bras_id" === "BLC-MP01-2")
         /*val result = iqr.withColumn("outlier",when(($"detrendSL" > $"upper_iqr_SL" )
                                || ($"detrendLS" > $"upper_iqr_LS" ),1).otherwise(0))*/
-        println("RESULT-------------------------------------------------------")
+        //println("RESULT-------------------------------------------------------")
+        // TODO debug
         //result.show(40)
         import org.elasticsearch.spark.sql._
         //result.saveToES("")
-        val result2: DataFrame = result.select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time")
-          //.where($"outlier" > lit(0))
-          //TODO uncomment this on  production mode
-          .where($"outlier" > lit(0) && col("rank_time") === lit(1))
+        val result2: DataFrame = result.select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time","rank_time")
+                                        .where($"outlier" > lit(0) && col("rank_time") === lit(1))
+                                        .cache()
+        //TODO debug
+        println("RESULT 2 :  --------------------------------------------------")
+        result2.show()
         val brasids = result2.select("bras_id").rdd.map(r => r(0)).collect()
         var brasIdsString = "("
         brasids.foreach{x =>
@@ -115,62 +118,86 @@ object DetectAnomalyVer2 {
           brasIdsString = brasIdsString + y
         }
         brasIdsString = brasIdsString.dropRight(1) + ")"
-        val theshold = spark.sql(s"Select * from bras_theshold WHERE bras_id IN $brasIdsString")
-        val result3 = result2.as("r").join(theshold.as("t"),Seq("bras_id")).select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time")
-                             .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
-
-        //.where($"outlier" > lit(0) && col("time_ranking") === lit(1))
-        println("RESULT FILTERD-------------------------------------------------------")
+        // TODO debug
+        println("Bras String :  ------------------------------------  ---------")
+        println(brasIdsString)
+        val theshold = spark.sql(s"Select * from bras_theshold WHERE bras_id IN $brasIdsString").cache()
+        // TODO debug
+        println("theshold :  ---------------------------------     ------------")
+        theshold.show()
+       /* val result3 = result2.join(theshold,"bras_id").select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time")
+          .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
+          .cache()*/
+        val result3tmp = result2.join(theshold,"bras_id").select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time").cache()
+        val result3 = result3tmp.select("*")
+         .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
+         .cache()
+        // TODO Debug
+        println("result3 :----- ----")
         result3.show()
-        try{
-          val outlierObjectRDD = result3.rdd.map { row =>
-            try{
-              val outlier = new BrasCoutOutlier(
-                row.getAs[String]("bras_id"),
-                row.getAs[Int]("signin_total_count"),
-                row.getAs[Int]("logoff_total_count"),
-                row.getAs[Double]("rateSL"),
-                row.getAs[Double]("rateLS"),
-                row.getAs[java.sql.Timestamp]("time"),
-                DatetimeController.sqlTimeStampToNumberFormat(row.getAs[java.sql.Timestamp]("time"))
-              )
-              println("OUTLIER : ---------------------------------------------------------")
-              println(outlier)
-              outlier
-            }catch {
-              case e: Exception => {println("ERROR IN PARSING BLOCK + "+e.printStackTrace()) ;
-                                    BrasCoutOutlier("n/a",0,0,0,0,new Timestamp(0),0)}
-              //case _: Throwable => println("Throwable ")
-            }
+        //.where($"outlier" > lit(0) && col("time_ranking") === lit(1))
+        println("RESULT FILTERD : Result 3 ------------------------------------")
 
-          }
-          println("SEND  TO BI -----------------------------------------------------")
-          import org.elasticsearch.spark._
-          outlierObjectRDD.foreachPartition { partition =>
-            if (partition.hasNext) {
-              val arrayListType = new TypeToken[java.util.ArrayList[BrasCoutOutlier]]() {}.getType
-              val gson = new Gson()
-              val metrics = new util.ArrayList[BrasCoutOutlier]()
-              partition.foreach(bras => metrics.add(bras))
-              val metricsJson = gson.toJson(metrics, arrayListType)
-              println("METRICS : " + metricsJson )
-              val http = Http(bPowerBIURL.value).proxy(bPowerBIProxyHost.value, 80)
-              try {
-                val result = http.postData(metricsJson)
-                  .header("Content-Type", "application/json")
-                  .header("Charset", "UTF-8")
-                  .option(HttpOptions.readTimeout(15000)).asString
-                println(s"Send Outlier metrics to PowerBi - Statuscode : ${result.statusLine}.")
-                logger.warn(s"Send Outlier metrics to PowerBi - Statuscode : ${result.statusLine}.")
-              } catch {
-                case e: java.net.SocketTimeoutException => logger.error(s"Time out Exception when sending Outlier result to BI")
-                case _: Throwable => println("Just ignore this shit.")
+        if(result3.count() > 0){
+          try{
+            val outlierObjectRDD = result3.rdd.map { row =>
+              try{
+                val time = row.getAs[java.sql.Timestamp]("time")
+                val outlier = new BrasCoutOutlier(
+                  row.getAs[String]("bras_id"),
+                  row.getAs[Int]("signin_total_count"),
+                  row.getAs[Int]("logoff_total_count"),
+                  row.getAs[Double]("rateSL"),
+                  row.getAs[Double]("rateLS"),
+                  time,
+                  DatetimeController.sqlTimeStampToNumberFormat(time)
+                )
+                println("OUTLIER : -----------------------------------------------------")
+                println(outlier)
+                outlier
+              }catch {
+                case e: Exception => {println("ERROR IN PARSING BLOCK + "+e.printStackTrace()) ;
+                  BrasCoutOutlier("n/a",0,0,0,0,new Timestamp(0),0)}
+                //case _: Throwable => println("Throwable ")
+              }
+
+            }
+            println("SEND  TO BI -----------------------------------------------------")
+            import org.elasticsearch.spark._
+            outlierObjectRDD.foreachPartition { partition =>
+              if (partition.hasNext) {
+                val arrayListType = new TypeToken[java.util.ArrayList[BrasCoutOutlier]]() {}.getType
+                val gson = new Gson()
+                val metrics = new util.ArrayList[BrasCoutOutlier]()
+                partition.foreach(bras => metrics.add(bras))
+                val metricsJson = gson.toJson(metrics, arrayListType)
+                println("METRICS : " + metricsJson )
+                val http = Http(bPowerBIURL.value).proxy(bPowerBIProxyHost.value, 80)
+                try {
+                  val result = http.postData(metricsJson)
+                    .header("Content-Type", "application/json")
+                    .header("Charset", "UTF-8")
+                    .option(HttpOptions.readTimeout(15000)).asString
+                  println(s"Send Outlier metrics to PowerBi - Statuscode : ${result.statusLine}.")
+                  logger.warn(s"Send Outlier metrics to PowerBi - Statuscode : ${result.statusLine}.")
+                } catch {
+                  case e: java.net.SocketTimeoutException => logger.error(s"Time out Exception when sending Outlier result to BI")
+                  case _: Throwable => println("Just ignore this shit.")
+                }
               }
             }
+          }catch{
+            case e : Throwable => println("ERROR IN SENDING BLOCK !!---------------------------------------------------" + e.printStackTrace())
           }
-        }catch{
-          case e : Throwable => println("ERROR IN SENDING BLOCK !!---------------------------------------------------" + e.printStackTrace())
+
         }
+        // Unpersist
+        brasCounDFRaw.unpersist()
+        brasCounDF.unpersist()
+        result2.unpersist()
+        result3.unpersist()
+        theshold.unpersist()
+        result3tmp.unpersist()
 
       //ES -Mongo -Cassandra
       //outlierObjectRDD.saveToEs("radius_oulier_detect")

@@ -30,9 +30,9 @@ object DatetimeController extends Serializable{
   def sqlTimeStampToNumberFormat(time: java.sql.Timestamp): Float = {
     val cal: Calendar = Calendar.getInstance()
     cal.setTimeInMillis(time.getTime)
-    val year =  cal.get(Calendar.YEAR)
-    val month = cal.get(Calendar.MONTH)
-    val date = cal.get(Calendar.DATE)
+    //val year =  cal.get(Calendar.YEAR)
+    //val month = cal.get(Calendar.MONTH)
+    //val date = cal.get(Calendar.DATE)
     val hour = cal.get(Calendar.HOUR)
     val minute = cal.get(Calendar.MINUTE)
     val result = (minute.toFloat/100) + hour
