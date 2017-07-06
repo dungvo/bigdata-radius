@@ -2,7 +2,7 @@ package core.streaming
 
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
-import parser.{AbtractLogParser, ConnLogParser, LoadLogParser,INFLogParser}
+import parser.{AbtractLogParser, ConnLogParser, LoadLogParser,INFLogParser,NocParser}
 import streaming_jobs.conn_jobs.ConcurrentHashMapAccumulator
 
 import scala.collection.{Map, mutable}
@@ -99,6 +99,21 @@ object InfParserBroadcast {
   @volatile private var instance: Broadcast[INFLogParser] = null
 
   def getInstance(sc: SparkContext,parser: INFLogParser): Broadcast[INFLogParser] = {
+    if (instance == null) {
+      synchronized {
+        if (instance == null) {
+          instance = sc.broadcast(parser)
+        }
+      }
+    }
+    instance
+  }
+}
+object NocParserBroadcast {
+
+  @volatile private var instance: Broadcast[NocParser] = null
+
+  def getInstance(sc: SparkContext,parser: NocParser): Broadcast[NocParser] = {
     if (instance == null) {
       synchronized {
         if (instance == null) {
