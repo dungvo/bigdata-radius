@@ -53,7 +53,7 @@ class NocParser extends AbtractLogParser{
 
   def extractValue(line: String): Option[AbtractLogLine]  ={
     line match{
-      case searchObj(header,text,time,deviceName,text2,foundResult,text3) => Option(NocLogLineObject(foundResult,safetyParseStringToInt(header,0),deviceName,time,getFacility(header),getSeverity(header)))
+      case searchObj(header,text,time,deviceName,text2,foundResult,text3) => Option(NocLogLineObject(foundResult,safetyParseStringToInt(header,-1),deviceName,time,getFacility(header),getSeverity(header)))
       case _ => None
     }
   }

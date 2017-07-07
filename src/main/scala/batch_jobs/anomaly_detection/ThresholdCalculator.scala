@@ -41,13 +41,14 @@ object ThresholdCalculator {
     val window2 = Window.partitionBy("bras_id")
     val now = System.currentTimeMillis()
     val timestamp = new org.joda.time.DateTime(now).minusDays(7).toString("yyyy-MM-dd HH:mm:ss.SSS")
-    val q75TH = new core.udafs.Q75TH
+    val q95TH = new core.udafs.Q95TH
+    //val q95TH = new core.udafs.QnTH(95)
 
     val brasCountLastWeek = spark.sql(s"SELECT * FROM brasscount WHERE time > '$timestamp'")
     logger.warn(s"Read brascount from $timestamp to $now")
 
-    val brasThresHold = brasCountLastWeek.withColumn("threshold_signin",q75TH(col("signin_total_count")).over(window2))
-                                         .withColumn("threshold_logoff",q75TH(col("logoff_total_count")).over(window2))
+    val brasThresHold = brasCountLastWeek.withColumn("threshold_signin",q95TH(col("signin_total_count")).over(window2))
+                                         .withColumn("threshold_logoff",q95TH(col("logoff_total_count")).over(window2))
                                          .select("bras_id","threshold_signin","threshold_logoff")
     logger.warn(s"Calculate brascount threshold")
 

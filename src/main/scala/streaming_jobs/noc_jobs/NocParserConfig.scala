@@ -18,7 +18,7 @@ object NocParserConfig {
   import net.ceedubs.ficus.Ficus._
   def apply() : NocParserConfig = apply(ConfigFactory.load)
   def apply(infConfig: Config):NocParserConfig = {
-    val config = infConfig.getConfig("infConfig")
+    val config = infConfig.getConfig("nocConfig")
     new NocParserConfig(
       config.as[String]("input.topic"),
       config.as[FiniteDuration]("streamingBatchDuration"),
