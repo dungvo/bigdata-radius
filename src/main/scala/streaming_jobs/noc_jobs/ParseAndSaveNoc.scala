@@ -28,7 +28,7 @@ object ParseAndSaveNoc {
 
     lines.persistToStorageDaily(Predef.Map[String, String]("indexPrefix" -> "noc", "type" -> "parsed"))
 
-    val result  = lines.foreachRDD{
+    lines.foreachRDD{
       (rdd: RDD[NocLogLineObject],time: org.apache.spark.streaming.Time) =>
         //filter from RDD -> sev == wraning or error
         rdd.cache()
@@ -41,8 +41,9 @@ object ParseAndSaveNoc {
 
         val brasErrorCount = brasErAndWaWithFlag.groupBy(col("devide"))
           .agg(sum(col("erro_flag")).as("total_err_count"),sum(col("warning_flag")).as("total_warning_count"))
+          .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
 
-        brasErrorCount.write.mode("append").cassandraFormat("brasNocErrorCount","radius","test").save()
+        brasErrorCount.write.mode("append").cassandraFormat("noc_bras_error_counting","radius","test").save()
         rdd.unpersist(true)
         brasErAndW.unpersist(true)
         brasErAndWaWithFlag.unpersist(true)
@@ -64,4 +65,25 @@ object ParseAndSaveNoc {
     parserObject
   }.filter(x => x != None).map(ob => ob.asInstanceOf[parser.NocLogLineObject])
 
+}
+
+
+
+object BrasErrorTest{
+  def main(args: Array[String]): Unit = {
+    val sparkSession  = SparkSession.builder().appName("test_bras_erro").master("local[1]").getOrCreate()
+    import sparkSession.implicits._
+    val brasErAndW = sparkSession.sparkContext.parallelize(Seq(("INTERACT-6-UI_CMDLINE_READ_LINE","190","NTN-MP01-2","07:00:30","local7","info"),
+      ("DAEMON-4-DDOS_PROTOCOL_VIOLATION_SET","28","NTN-MP01-2","07:00:30","daemon","warning"),
+      ("PFE-4","164","VTU-MP01-1-NEW","07:00:30","local4","err"))).toDF("error","pri","devide","time","facility","severity")
+
+    val brasErAndWaWithFlag= brasErAndW.withColumn("erro_flag",when(col("severity") === "err",1).otherwise(0))
+      .withColumn("warning_flag",when(col("severity") === "warning",1).otherwise(0))
+      .cache()
+
+    val brasErrorCount = brasErAndWaWithFlag.groupBy(col("devide"))
+      .agg(sum(col("erro_flag")).as("total_err_count"),sum(col("warning_flag")).as("total_warning_count"))
+      .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+    brasErrorCount.show()
+  }
 }

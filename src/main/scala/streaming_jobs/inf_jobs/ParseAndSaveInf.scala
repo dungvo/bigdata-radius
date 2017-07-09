@@ -1,15 +1,18 @@
 package streaming_jobs.inf_jobs
 
+import java.sql.Timestamp
+
 import core.streaming.InfParserBroadcast
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.streaming.StreamingContext
+import org.apache.spark.sql.functions.expr
+import org.apache.spark.streaming.{Duration, StreamingContext, Time}
 import org.apache.spark.streaming.dstream.DStream
 import org.json4s.jackson.JsonMethods.parse
 import parser.{INFLogParser, InfLogLineObject}
 import storage.es.ElasticSearchDStreamWriter._
-
+import org.apache.spark.sql.cassandra._
 /**
   * Created by hungdv on 19/06/2017.
   */
@@ -20,10 +23,53 @@ object ParseAndSaveInf {
                    infParser: INFLogParser): Unit = {
     val sc = ss.sparkContext
     val bParser = InfParserBroadcast.getInstance(sc, infParser)
-
+    val bErrorType = sc.broadcast(Seq("module/cpe error","disconnect/lost IP"))
+    import ss.implicits._
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     val lines = kafkaMessages.transform(extractMessageAndValue("message", bParser))
-    lines.persistToStorageDaily(Predef.Map[String, String]("indexPrefix" -> "inf", "type" -> "rawLog"))
+    //lines.persistToStorageDaily(Predef.Map[String, String]("indexPrefix" -> "inf", "type" -> "rawLog"))
+    val filtered = lines.filter(ob => (ob.logType == "module/cpe error" || ob.logType == "disconnect/lost IP" || ob.logType == "power off"))
+    val mappedLogType = filtered.map{ob  =>
+      var logType = ob.logType
+      var count   = 1
+      if(ob.logType == "power off"){
+        logType = "disconnect/lost IP"
+        count = -1
+      }
+
+      ((ob.hostName,logType,ob.time.substring(0,5)),count)
+    }
+    val hostErrorCounting = mappedLogType
+        //.reduceByKey(_ + _)
+      .reduceByKeyAndWindow(_ + _, _ - _,Duration(30*1000),Duration(10*1000))
+      .filter(pair => (pair._2 > 0))
+    val df = hostErrorCounting.map{
+      value =>
+        val result = new HostErrorCountObject(value._1._1,value._1._2,new Timestamp(System.currentTimeMillis()),value._2)
+        //val result = new HostErrorCountObject(value._1._1,value._1._2,value._1._3,value._2)
+        result
+    }
+    df.foreachRDD{
+      //(rdd,time: Time) =>
+        rdd =>
+        val df = rdd.toDF("host","erro","time","count")
+        val dfPivot = df.groupBy("host","time").pivot("erro",bErrorType.value)
+                                              .agg(expr("coalesce(first(count),0)")).na.fill(0)
+                                              .cache()
+                                              .withColumnRenamed("module/cpe error","cpe_error")
+                                              .withColumnRenamed("disconnect/lost IP","lostip_error")
+        //println("Time : " + time + "rdd - id" + rdd.id)
+        //dfPivot.show()
+        dfPivot.write.mode("append").cassandraFormat("inf_host_error_counting","radius","test").save()
+        dfPivot.unpersist(true)
+    }
+
+
+
+    /*lines.foreachRDD{
+      (rdd: RDD[InfLogLineObject],time: Time) =>
+
+    }*/
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /////// THE SAME WAY AS ABOVE
     /*lines.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "inf-parsed-test","type" -> "rawLog"))
@@ -83,3 +129,5 @@ object ParseAndSaveInf {
         parserObject
       }.filter(x => x != None).map(ob => ob.asInstanceOf[InfLogLineObject])
 }
+
+case class HostErrorCountObject(hostName: String,error: String,time: Timestamp,count: Int) extends Serializable{}

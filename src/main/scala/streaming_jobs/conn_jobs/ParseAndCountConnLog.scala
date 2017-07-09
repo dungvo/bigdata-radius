@@ -196,7 +196,7 @@ object ParseAndCountConnLog {
     objectConnLogs.foreachRDD({
       (rdd: RDD[ConnLogLineObject],time_ : Time) =>
         // Get sparkContext from rdd
-        //val context = rdd.sparkContext
+        ///val context = rdd.sparkContext
         // Get the singleton instance of SparkSession
         //val sparkSession = SparkSessionSingleton.getInstance(context.getConf)
         //val sparkSession = SparkSessionSingleton.getInstance(rdd.sparkContext.getConf)

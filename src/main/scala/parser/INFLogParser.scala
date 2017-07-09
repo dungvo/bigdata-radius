@@ -67,7 +67,7 @@ class INFLogParser extends AbtractLogParser{
 
 }
 
-case class InfLogLineObject(
+case class  InfLogLineObject(
                            val logType: String,
                            val hostName: String,
                            val date: String,

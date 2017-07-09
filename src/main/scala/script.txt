@@ -33,3 +33,41 @@ CREATE TABLE brasscount(bras_id text,signin_total_count int,logoff_total_count i
 CREATE TABLE brashostmapping(bras_id text,host text,PRIMARY KEY(host));
 
 CREATE TABLE bras_theshold(bras_id text,threshold_signin int,threshold_logoff int,PRIMARY KEY(bras_id));
+
+CREATE TABLE inf_host_error_counting(host text,cpe_error int,lostIP_error int,time timestamp,PRIMARY KEY(host,time));
+CREATE TABLE noc_bras_error_counting(devide text,total_err_count int,total_warning_count int,time timestamp,PRIMARY KEY(devide,time));
+
+
+///////////////////////////////////////// KAFKA
+
+
+### Start ZooKeeper server:
+```sh
+./bin/zookeeper-server-start.sh config/zookeeper.properties
+```
+### Start Kafka server:
+```sh
+./bin/kafka-server-start.sh config/server.properties
+```
+### Create input topic:
+```sh
+./bin/kafka-topics.sh --create --zookeeper localhost:2182 --replication-factor 1 --partitions 1 --topic input
+```
+### Create output topic:
+```sh
+./bin/kafka-topics.sh --create --zookeeper localhost:2182 --replication-factor 1 --partitions 1 --topic output
+```
+### Start Kafka producer:
+```sh
+./bin/kafka-console-producer.sh --broker-list localhost:9092 --topic input
+```
+### Start Kafka consumer:
+```sh
+./bin/kafka-console-consumer.sh --zookeeper localhost:2182 --topic output
+```
+Run example application and publish a few words on input topic using Kafka console producer and check the processing result on output topic using Kafka console producer.
+
+
+./bin/kafka-topics.sh --zookeeper localhost:2182 --list
+
+./bin/kafka-topics.sh --create --zookeeper localhost:2182 --replication-factor 1 --partitions 1 --topic radiusConLog
