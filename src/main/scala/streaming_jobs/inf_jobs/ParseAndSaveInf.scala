@@ -41,7 +41,7 @@ object ParseAndSaveInf {
     }
     val hostErrorCounting = mappedLogType
         //.reduceByKey(_ + _)
-      .reduceByKeyAndWindow(_ + _, _ - _,Duration(30*1000),Duration(10*1000))
+      .reduceByKeyAndWindow(_ + _, _ - _,Duration(90*1000),Duration(30*1000))
       .filter(pair => (pair._2 > 0))
     val df = hostErrorCounting.map{
       value =>

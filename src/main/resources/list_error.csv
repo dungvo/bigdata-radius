@@ -1,0 +1,156 @@
+LOG NAME,LOG TYPE,LEVEL,KNOWLEDGE DESCRIPTION,ACTION,TOOL
+AUTH-3-LOGIN_PAM_AUTHENTICATION_ERROR,error,info,Quy trình đăng nhập không thể xác thực user qua PAM,Cảnh báo truy cập trái phép cho system admin,Telegram
+AUTH-3-LOGIN_PAM_ERROR,error,info,Quy trình đăng nhập không thể xác thực user qua PAM,Cảnh báo truy cập trái phép cho system admin,Telegram
+AUTH-3-LOGIN_PAM_USER_UNKNOWN,error,info,Quy trình đăng nhập không thể xác thực được user qua PAM vì tài khoản user này không tồn tại.,Tùy tần suất cảnh báo Bruce force attack,Telegram
+CONFLICT-4-DCD_PARSE_WARN_INCOMPATIBLE_CFG,warn,critical,Cảnh báo một configure không được hỗ trợ trong các bản cập nhật sau.,Liên hệ hỗ trợ kĩ thuật,Tạo SC +Báo bộ phận liên quan hỗ trợ
+CONFLICT-4-PARSE_WARN_NO_ROUTER_AD_CFG,warn,info,Quảng bá định tuyến không được cấu hình cho một interface có cấu hình IPv6,Cấu hình lại Router Config,Tạo SC +Báo bộ phận liên quan hỗ trợ
+CONFLICT-4-RPD_PLCY_CFG_PREFIX_LEN_SHORT,warn,info,Số bit địa chỉ quá ngắn. Số bit địa chỉ sẽ bị bỏ qua,Xem lại cấu hình,Tạo SC +Báo bộ phận liên quan hỗ trợ
+CONFLICT-4-RPD_VPLS_INTF_NOT_IN_SITE,warn,info,Một số interface của vpls instance không được cấu hình cho địa chỉ đó,Cấu hình toàn bộ interfacce cho 1 địa chỉ,Tạo SC +Báo bộ phận liên quan hỗ trợ
+DAEMON-3-AUDITD_RADIUS_REQ_DROPPED,error,critical,Quá trình kiểm toán (auditd) thu nhận thông tin về các sự kiện hệ thống từ các quá trình hệ thống khác và gửi thông tin tới RADIUS servers trong một bản tin yêu cầu thống kê. Quá trình này sẽ liên tục gửi các bản tin tới tất cả các server mà không nhận phản hồi. Sau đó bản tin sẽ bị hủy bỏ. ,"Kiểm tra lại địa chỉ server, hoặc liên hệ hỗ trợ kĩ thuật để kiểm tra cấu hình server",Tạo SC +Báo bộ phận liên quan hỗ trợ
+DAEMON-3-AUDITD_RADIUS_REQ_TIMED_OUT,error,info,"Quá trình kiểm toán (auditd) thu nhận thông tin về các sự kiện hệ thống từ các quá trình hệ thống khác và gửi thông tin tới RADIUS servers trong một bản tin yêu cầu thống kê. Nếu không nhận được phản hồi từ server nào đó, quá trình sẽ đợt 1 khoảng thời gian nhất định trước khi gửi lại bản tin.",Kiểm tra tình trạng server và mã truy nhập. Hoặc liên hệ hỗ trợ kĩ thuật nếu cần thiết,Tạo SC +Báo bộ phận liên quan hỗ trợ
+DAEMON-3-BGP_CONNECT_FAILED,error,info,Có lỗi khi kết nối một socket với 1 địa chỉ.,None,Telegram
+DAEMON-3-BGP_UNUSABLE_ASPATH,error,info,Phiên local BGP được update với một AS path không thể sử dụng. Tuyến tương ứng sẽ bị hủy,None,Telegram
+DAEMON-3-CHASSISD_FAN_FAILURE,error,info,"Quạt lỗi. Hệ thống (chassis process) sẽ phát cảnh báo, đồng thời tăng tốc các quạt còn lại lên mức tối đa",Liên hệ hỗ trợ kĩ thuật,Telegram
+DAEMON-3-CHASSISD_FASIC_HSL_LINK_ERROR,error,info,"Hệ thống phát hiện lỗi trên link tốc độ cao của F-chip, trên bảng điều khiển.",Liên hệ hỗ trợ kĩ thuật,Telegram
+DAEMON-3-CHASSISD_FRU_ONLINE_TIMEOUT,error,info,"Một bộ phận (có thể thay thế, FRU) không hoạt động trong khoảng thời gian xác định như bình thường. Sau khi tạo ra bản tin, hệ thống sẽ cố gắng khởi động lại thành phần đó. Nếu mọi nỗ lực không thành công, hệ thống sẽ phát ra cảnh báo và để thành phần đó không hoạt động.",None,Telegram
+DAEMON-3-CHASSISD_FRU_UNRESPONSIVE,error,info,"Quy trình hệ thống (chassis process)cố gắng khởi động  một bộ phận (FRU), nhưng không thành công vì một nguyên nhân đã biết. Do vậy, một hành động tương ứng sẽ được thực hiện.",None,Telegram
+DAEMON-3-CHASSISD_FRU_UNRESPONSIVE_RETRY,error,info,"Quy trình hệ thống (chassis process) thử một số lần nhất định để khởi động một thành phần, nhưng mọi nỗ lực thất bại. Trong một nỗ lực khác nhằm khởi động lại FRU, hệ thống sẽ khởi động lại lệnh trên FRU đó.",None,Telegram
+DAEMON-3-CHASSISD_I2CS_READBACK_ERROR,error,info,Quy trình hệ thống (chassisd) không thể đọc thông tin từ I2C slave (I2CS) về một thành phần FRU.,Liên hệ hỗ trợ kĩ thuật,Telegram
+DAEMON-3-CHASSISD_IPC_CONNECTION_DROPPED,error,info,Quy trình hệ thống loại bỏ kết nối IPC đến một thành phần FRU.,Liên hệ hỗ trợ kĩ thuật,Báo bộ phận liên  quan
+DAEMON-3-CHASSISD_IPC_MSG_FRU_NOT_FOUND,error,info,Quy trình hệ thống  không thể định vị được thành phần FRU để gửi bản tin IPC với những đặc điểm riêng biệt của bộ thu. Bản tin này sẽ bị bỏ qua. ,Liên hệ hỗ trợ kĩ thuật,Báo bộ phận liên  quan
+DAEMON-3-CHASSISD_POWER_CHECK,error,info,"Quá trình hệ thống không  thể bật thành phần FRU, vì FRU không phản hồi. ",Liên hệ hỗ trợ kĩ thuật,Báo bộ phận liên  quan
+DAEMON-3-CHASSISD_UNSUPPORTED_FPC,error,info,Thiết bị không hỗ trợ card FPC,Liên hệ hỗ trợ kĩ thuật.,Báo bộ phận liên  quan
+DAEMON-3-CHASSISD_VERSION_MISMATCH,error,info,"Khi một thiết bị FRU hoạt động, quy trình hệ thống (chassisd) kiểm chứng lại mức sửa đổi của FRU được hỗ trợ. Mức sửa đổi của FRU không được hỗ trợ hoặc không hợp lệ.",Cập nhật lại phần mềm và reboot bộ định tuyến. ,Telegram
+DAEMON-3-COSD_AGGR_CONFIG_INVALID,error,critical,Quy trình lớp dịch vụ CoS (cosd) không áp dụng cấu hình cho interface này vì không hợp lệ. ,Gỡ bỏ hoặc thay đổi cấu hình trên interface,Telegram
+DAEMON-3-COSD_SCHEDULER_MAP_CONFLICT,error,info,"Các lớp chuyển tiếp, được định nghĩa trên bản đồ lịch trình, được trỏ tới cùng 1 queue. Thao tác này không hợp lệ. ",Map only one forwarding class to the queue.,Telegram
+DAEMON-3-COSD_TX_QUEUE_RATES_TOO_HIGH,error,critical,"Quy trình lớp dịch vụ (cosd) không thể áp dụng bản đồ  lịch trình cho 1 interface, vì tống số tỉ lệ truyền được định nghĩa trong bản đồ lịch trình đã đạt tới hạn đối với interface. Trong thời hạn cấu hình, tuyên bố ""transmit-rate"" sẽ được cụ thể hóa cho mỗi lịch trình với cấp bậc khác nhau. Tổng số tỉ lệ truyền được cấu hình làm nghẽn bộ truyền tín hiệu hoặc shaping rate của interface. ","Giảm giá trị của 1 hoặc nhiều ""transmite rate"" để tổng số nhỏ hơn tỉ số truyền của interface",Telegram
+DAEMON-3-DCD_CONFIG_WRITE_FAILED,error,critical, DCD gặp một lỗi khi cố gắng gửi một cấu hình interface tới trung tâm qua routing socket.,liên hệ hỗ trợ kĩ thuật,Telegram
+DAEMON-3-DCD_PARSE_EMERGENCY,error,emergency, Gặp sự cố trong quá trình phân tích dữ liệu,liên hệ hỗ trợ kĩ thuật,Telegram
+DAEMON-3-JTASK_SCHED_SLIP_KEVENT,error,info,Quá trình mất quá nhiều thời gian cho kevent để đợi I/O event.,Không cần có thao tác gì trừ khi xảy ra sự bất ổn định trong quá trình định tuyến. Tuy nhien nên báo lỗi với hỗ trợ kĩ thuật để phân tích nguyên nhân.,Telegram
+DAEMON-3-JTASK_SNMP_CONN_RETRY,error,info,Quy trình cố gắng kết nối với một SNMP master sau khi một nỗ lực kết nối thất bại.,None,Telegram
+DAEMON-3-L2ALD_MAC_LIMIT_REACHED_BD,error,critical,Quy trình học địa chỉ lớp 2 (l2ald) ngừng thêm địa chỉ vào bảng địa chỉ MAC đã được học bởi các interface vì số lượng địa chỉ đã được học đạt tới ngưỡng (mặc định hoặc được cấu hình).,"Tăng giới hạn số địa chỉ học bởi interface trên domain, bằng các tăng giá trị ""interface-mac-limit"" ",Telegram
+DAEMON-3-LIBJNX_REPLICATE_RCP_ERROR,error,critical,Lệnh RCP không thành công trong quá trình sao chép,thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-LIBJSNMP_NS_LOG_ERR,error,info,Lỗi SNMP,thông báo với đại diện kỹ thuật,Telegram + tạo SC + báoNOCNET
+DAEMON-3-LICENSE,error,info,Lỗi bản quyền,Liên hệ với đối tac,Telegram
+DAEMON-3-MIB2D_COUNTER_DECREASING,error,info,Lỗi giá trị truy cập MIB2D giảm do quy trình mib2d nhận được một bộ đếm có giá trị nhỏ hơn giá trị thu được cuối cùng.,thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-MIB2D_RTSDB_DOWN,error,info," Bộ nhớ chia sẻ Daemon (shm-rtsdbd) down, tắt MIB2D",Lỗi phần mềm,Telegram + tạo SC + báoNOCNET
+DAEMON-3-MIB2D_RTSLIB_READ_FAILURE,error,info,Một cuộc gọi đến chức năng chỉ định trong thư viện socket định tuyến thất bại trong quá trình hoạt động trên đối tượng được chỉ định.,Lỗi phần mềm,Telegram
+DAEMON-3-MIB2D_SNMP_INDEX_ASSIGN,error,critical, Không thể chỉ định chỉ số snmp cho mỗi giao diện,Lỗi phần mềm,Telegram + tạo SC + báoNOCNET
+DAEMON-3-PPMD_WRITE_ERROR,error,info,"Quá trình quản lý gói tin định kỳ (ppmd) không thể ghi một thông báo cho giao thức chỉ định.
+",thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-RPD_DYN_CFG_GET_PROF_NAME_FAILED,error,info,Quy trình giao thức định tuyến (rpd) đã cố lấy tên frofile  từ bản chụp phiên và không thành công,thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-RPD_DYN_CFG_PROCESSING_FAILED,error,info,Quy trình giao thức định tuyến (rpd) đã cố gắng xử lý cấu hình động và không thành công.,thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-RPD_DYN_CFG_RESPONSE_SLOW,error,info,Quy trình giao thức định tuyến (rpd) đang phản ứng chậm các yêu cầu cấu hình động.,thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-RPD_KRT_Q_RETRIES,error,info,Quy trình giao thức định tuyến (rpd) đã cố gắng cập nhật kennel cho các thời điểm đã chỉ định và không thành công. Nó sẽ tiếp tục thử lại.,thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-RPD_L2VPN_SITE_COLLISION,error,critical,"Quy trình giao thức định tuyến (rpd) cho mạng riêng ảo được chỉ định (VPN) đã nhận được một quảng cáo từ router của nhà cung cấp cạnh xa (PE), nhưng ID trang web liên quan thuộc về một trang web cục bộ.","Thông báo này báo cáo sự kiện, không phải lỗi",Telegram
+DAEMON-3-RPD_MPLS_OAM_PING_REPLY_TIMEOUT,error,critical,"LSP ping đã hết thời gian chờ trả lời. Nếu bất kỳ hành động thất bại được cấu hình, hành động thất bại sẽ được thực hiện","Thông báo này báo cáo sự kiện, không phải lỗi",Telegram
+DAEMON-3-RPD_PPM_WRITE_ERROR,error,info,Quá trình giao thức định tuyến (rpd) không thể ghi một thông báo trên pipe vào quá trình quản lý gói (ppmd).,thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-RPD_RA_DYN_CFG_SES_ID_MISMATCH,error,info,Yêu cầu khởi tạo cấu hình động cho ipv6 bị từ chối do id phiên không khớp,thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-RPD_SCHED_SLIP,error,info,"RPD trì hoãn một sự kiện, chẳng hạn như phát hành một thông báo thiết lập, nghĩa vụ phải xảy ra vào một thời điểm cụ thể. Sự kiện này đã không xảy ra vào đúng thời điểm. (Một sự kiện hẹn giờ bị trì hoãn). Nguyên nhân: Một quá trình khác đang chạy ở mức độ ưu tiên cao hơn, hoặc một công việc trong quá trình định tuyến đã lập kế hoạch cho sự kiện đã hẹn giờ",thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-RPD_SCHED_SLIP_KEVENT,error,info,RPD đã dành quá nhiều thời gian trên kevent để đợi sự kiện I/O đang chờ xử lý.,Không bắt buộc hành động trừ khi sự cố định tuyến xảy ra.,Telegram
+DAEMON-3-RPD_SNMP_CONN_RETRY,error,info,Quy trình giao thức định tuyến (rpd) đã thử lại để kết nối với SNMP được chỉ định sau khi kết nối không thành công.,rpd được nối lại với SNMP,Telegram
+DAEMON-3-SNMPD_SEND_FAILURE,error,info,SNMP không thể gửi một đơn vị dữ liệu giao thức (PDU) tới Giao thức (UDP) hoặc một tin nhắn đến một Subagent.,Lỗi phần mềm,Telegram
+DAEMON-3-SNMPD_SOCKET_FAILURE,error,critical,"Quy trình quản lý giao thức đơn giản SNMP (snmpd) sử dụng socket để liên lạc với các subagent. Thao tác socket, chẳng hạn như tạo hoặc xóa, không thành công.",Socket hoạt động không thành công,Telegram
+DAEMON-3-SNMPD_TRAP_WARM_START,error,critical,Quá trình đại lý SNMP  tạo ra một cái bẫy khởi động khi khởi khởi tạo (các quy trình Routing Engine khác đã hoạt động),"Thông báo này báo cáo sự kiện, không phải lỗi",Telegram
+DAEMON-3-SPD_CONN_OPEN_FAILURE,error,info,"Quá trình dịch vụ thích nghi (spd) cố mở một kết nối đến giao diện được chỉ định trên một Dịch vụ thích ứng PIC, để thu thập thông tin được yêu cầu trong SNMP. Không thành công vì lý do được chỉ định.",thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-UI_CHILD_WAITPID,error,info,Quá trình quản lý (mgd) tạo ra một quá trình con để thực hiện một lệnh cho nó mà không thể đợi quá trình con kết thúc.,thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-UI_CONFIGURATION_ERROR,error,info,Quá trình tìm thấy vấn đề với cấu hình,thông báo với đại diện kỹ thuật,Telegram + tạo SC + báoNOCNET
+DAEMON-3-UI_DBASE_OPEN_FAILED,error,info,Quá trình quản lý (mgd) không thể mở tập tin cơ sở dữ liệu cấu hình được chỉ định.,Chọn một tên tệp khác hoặc tạo một cấu hình mới. Xóa các tệp khỏi thư mục / config để có thêm dung lượng trống.,Telegram + tạo SC + báoNOCNET
+DAEMON-3-UI_RECONN_READ_FAILED,error,info,Quá trình quản lý (MGD) đọc phản ứng không hợp lệ khi kết nối peer này.,thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-UI_WRITE_LOSTCONN,error,info,Quá trình quản lý (MGD) không thể ghi dữ liệu cho peer này.,thông báo với đại diện kỹ thuật,Telegram
+DAEMON-3-VRRPD_MISSING_VIP,error,info,"Giao diện chỉ định đã nhận gói tin VLANR (Virtual Routing Redundancy protocol) cho nhóm VRRP được chỉ định, trong đó danh sách các địa chỉ IP ảo không bao gồm địa chỉ được chỉ định",thông báo với đại diện kỹ thuật,Telegram + tạo SC + báoNOCNET
+DAEMON-3-VRRPD_VIP_COUNT_MISMATCH,error,info,"Giao diện chỉ định đã nhận gói tin VRRP, trong đó số địa chỉ IP ảo khác với số địa chỉ được cấu hình cho nhóm và giao diện.",thông báo với đại diện kỹ thuật,Telegram + tạo SC + báoNOCNET
+DAEMON-4-AUTHD_AUTH_SERVER_STATUS_CHANGE,info,critical,"Trạng thái máy chủ xác thực được thay đổi thành Down nếu không có, và nó được đặt lại là UP sau khi bộ đếm khoảng thời gian hết hạn","Thông báo này báo cáo sự kiện, không phải lỗi",Telegram
+DAEMON-4-BFDD_TRAP_SHOP_STATE_DOWN,info,critical,Trạng thái đã thay đổi thành 'Down' hoặc 'Admin Down' cho phiên quy trình phát hiện chuyển tiếp hai chiều đã chỉ định (bfdd),"Thông báo này báo cáo sự kiện, không phải lỗi",Telegram
+DAEMON-4-BFDD_TRAP_STATE_DOWN,info,critical,Trạng thái đã thay đổi thành 'Down' hoặc 'Admin Down' cho phiên quy trình phát hiện chuyển tiếp hai chiều đã chỉ định (bfdd),"Thông báo này báo cáo sự kiện, không phải lỗi",Telegram
+DAEMON-4-BGP_ADDR_NOT_FOUND,info,critical,"Địa chỉ địa phương của BGP speaker's không được tìm thấy. Các peer sẽ được idled.
+","Thông báo này báo cáo sự kiện, không phải lỗi",Telegram
+DAEMON-4-BGP_PREFIX_THRESH_EXCEEDED,warn,emergency,Số lượng quảng bá phiên BGP cao trên 3000 làm sập phiên ,Thông báo cho đối tác về các quảng bá trên  hoặc cấu hình lại ngưỡng thông báo về số lượng quảng bá,Telegram + tạo SC + báo nocnet
+DAEMON-4-BGP_RESET_PENDING_CONNECTION,warn,critical,Reset lại peer BGP  do nhận gói tin tin open để thiết lập neigbor ở trạng thái tạo kết nối TCP,Hạn chế nhận gói open messenge trong giờ cao điểm,Telegram + tạo SC + báo nocnet
+DAEMON-4-CHASSISD_CONFIG_CHANGE_IFDEV_DEL,warn,info,Có 1 interface của thiết bị bị xóa do thay đổi cấu hình,Thông báo cho bộ phận quản lý các thiết bị trên,Tạo SC + báo bộ phận quản lý hạ tầng 
+DAEMON-4-CHASSISD_IPC_WRITE_ERR_NULL_ARGS,warn,info,"Không thể gửi gói tin đến các thiết bị ( nguồn, quạt..) do các thiết bị này có thể bị tháo hoặc thay thế",Thông báo cho bộ phận quản lý các thiết bị trên,Telegram
+DAEMON-4-CHASSISD_PEM_INPUT_BAD,warn,info,Cảnh báo modul nguồn do tháo hoặc mất nguồn cấp,Thông báo cho bộ phận quản lý các thiết bị trên,Telegram + tạo SC + báo bộ phận quản lý hạ tầng
+DAEMON-4-CHASSISD_PEM_TEMPERATURE,warn,emergency,Cảnh báo nhiệt độ của modul nguồn cao do nhiệt độ của thiết bị vượt quá ngưỡng,Thông báo cho bộ phận quản lý các thiết bị trên,Telegram + tạo SC + báo bộ phận quản lý hạ tầng
+DAEMON-4-CLKSYNCD_FAULT_LOS_SET,warn,critical,Cảnh báo link down,Thông báo cho bộ phận quản lý các thiết bị trên,Telegram + tạo SC + báo bộ phận quản lý hạ tầng
+DAEMON-4-COSD_CLASS_8021P_UNSUPPORTED,warn,info,Chuẩn IEEE-802.1  không hỗ trợ cho interface của thiết bị,"Xóa cấu hình chuẩn IEEE-802.1  trên interface , cấu hình lại 1 giao thức đóng gói phù hợp và hỗ trợ interface trên",Telegram + tạo SC + báo nocnet
+DAEMON-4-COSD_OUT_OF_DEDICATED_QUEUES,warn,critical,Số lượng hàng đợi của Sub qua cao,clear lock out  + kill session,Telegram
+DAEMON-4-DCD_PARSE_ERROR_HIER_SCHEDULER,warn,info,Không hỗ trợ QoS trong interface,"Đây là thông báo , không phải lỗi",Telegram
+DAEMON-4-DCD_PARSE_ERROR_SCHEDULER,warn,info,Không hỗ trợ QoS trong interface,"Đây là thông báo , không phải lỗi",Telegram
+DAEMON-4-DCD_PARSE_WARN_IDENTICAL_SUBNET,warn,info,Cảnh báo trùng subnet,Xem lại cấu hình,Báo bộ phận liên quan
+DAEMON-4-DDOS_PROTOCOL_VIOLATION_CLEAR,warn,critical,Hệ thống phát hiện DDOS  thông báo traffic đã trở lại bình thường,"Đây là thông báo , không phải lỗi",Telegram + tạo SC + báo bộ phận liên quan
+DAEMON-4-DDOS_PROTOCOL_VIOLATION_SET,warn,critical,Cảnh báo hệ thống phát hiện có DDOS tấn công,"Xem lại cấu hình mạng , và chặn ip gây ra DDOS",Telegram + tạo SC + báo bộ phận liên quan
+DAEMON-4-JTASK_CFG_CALLBACK_LONGRUNTIME,warn,critical,"Cảnh báo modul  đã chạy quá lâu , sẽ gây giảm hiệu suất khi hoạt động",Kiểm tra bảo trì bảo dưỡng định kỳ,Báo bộ phận liên quan
+DAEMON-4-JTASK_CFG_SCHED_CUMU_LONGRUNTIME,warn,critical,Cảnh báo modul chạy quá tải làm cho quá trình hoạt động sẽ gây ra sai sót,Kiểm tra bảo trì bảo dưỡng định kỳ,Báo bộ phận liên quan
+DAEMON-4-L2ALD_DEFAULT_VLAN_DISABLED,warn,info,Cảnh báo Vlan mặc định đã bị tắt do  tồn tại 1 cấu hình trùng với vlan id 1,"Kiểm cấu hình mạng, xóa cấu hình trùng đấy",Telegram + báo bộ phận liên quan
+DAEMON-4-L2ALD_MAC_LIMIT_REACHED_IFBD,warn,critical,Cảnh báo giới hạn học MAC của 1 interface,Tăng giá trị MAC mà 1 interface có thể học,Telegram + báo bộ phận liên quan
+DAEMON-4-L2ALD_MAC_LIMIT_RESET_BD,warn,info,Mac có thể được thêm vào RT,"Cái này chỉ là thông báo, không phải lỗi",Telegram
+DAEMON-4-L2ALD_MAC_LIMIT_RESET_IF,warn,info,Mac có thể được thêm vào interface,"Cái này chỉ là thông báo, không phải lỗi",Telegram
+DAEMON-4-L2ALD_MAC_MOVE_NOTIFICATION,warn,critical,"Cảnh báo MAC-MOVE ,địa chỉ MAC có nhiều ở inteface giống hoặc khác nhau dẫn đến dễ bị loop khi truyền và lỗi cấu hinh",Kiểm tra cấu hình và clear mac-move,Telegram + báo bộ phận liên quan
+DAEMON-4-L2ALD_MAC_MOVE_NOTIF_EXTENSIVE,warn,critical,"Cảnh báo MAC-MOVE ,địa chỉ MAC có nhiều ở inteface giống hoặc khác nhau dẫn đến dễ bị loop khi truyền và lỗi cấu hinh",Kiểm tra cấu hình và clear mac-move,Telegram + báo bộ phận liên quan
+DAEMON-4-LIBJSNMP_NS_LOG_WARNING,warn,critical,Cảnh báo lỗi SNMP không get được,Kiểm tra cấu hình,Telegram + báo bộ phận liên quan
+DAEMON-4-RPD_BGP_NEIGHBOR_STATE_CHANGED,warn,critical,Neighbor của BGP bị thay đổi trong quá trình thiết lập phiên BGP gây ra rớt phiên BGP ,Xem lại cấu hình mạng,Telegram 
+DAEMON-4-RPD_ISIS_LDP_SYNC,warn,emergency,Giao thức IS-IS và LDP mất đồng bộ,Xác định tại sao mất đồng bộ giữa IS -IS và LDP,Tạo SC + báo bộ phận liên quan
+DAEMON-4-RPD_ISIS_LSPCKSUM,warn,info,Cảnh báo quá trình checksum giữa IS-IS và LDP bị lỗi sẽ gây ra các gói tin truyển giữa router sẽ bị gián đoạn,Dựa vào tần suất mà thông báo cho sysadmin,Tạo SC + báo bộ phận liên quan
+DAEMON-4-RPD_KRT_KERNEL_BAD_ROUTE,warn,info,"Khi khởi động,quá trình định tuyến không thể định tuyến được route do route trên không còn gây ra sẽ 1 số route không nhận ra và đưa vào bản định tuyến",Dựa vào tần suất mà thông báo cho sysadmin,Tạo SC + báo bộ phận liên quan
+DAEMON-4-RPD_L2VPN_REMOTE_SITE_COLLISION,warn,info,2 site trùng site ID,Xem lại cấu hình site ID,Telegram
+DAEMON-4-RPD_MPLS_LSP_BANDWIDTH_CHANGE,warn,info,Băng thông của MPLS LSP bị thay đổi,"Đây là thông báo , không phải lỗi",Telegram
+DAEMON-4-RPD_MPLS_LSP_CHANGE,warn,info,MPLS LSP bị thay đổi,"Đây là thông báo , không phải lỗi",Telegram
+DAEMON-4-RPD_MPLS_LSP_DOWN,warn,info,MPLS LSP bị DOWN,"Đây là thông báo , không phải lỗi",Telegram
+DAEMON-4-RPD_MPLS_LSP_SWITCH,warn,info,MPLS LSP bị thay đổi giữa đường chính và đường dự phòng,"Đây là thông báo , không phải lỗi",Telegram
+DAEMON-4-RPD_MPLS_LSP_UP,warn,info,Nhãn MPLS LSP đã có và có thể gửi nhận traffic,"Đây là thông báo , không phải lỗi",Telegram
+DAEMON-4-RPD_MPLS_PATH_DOWN,warn,critical,Path của MPLS bị DOWN,Kiểm tra lại cấu hình,Telegram + báo bộ phận liên quan
+DAEMON-4-RPD_MPLS_PATH_UP,warn,critical,Path của MPLS UP,Kiểm tra lại cấu hình,Telegram
+DAEMON-4-RPD_MPLS_REQ_BW_NOT_AVAILABLE,warn,info,RSVP bị thất bại trong quá trình thiết lập đường đi và yêu cầu băng thông,Kiểm tra lại cấu hình,Telegram
+DAEMON-4-RPD_RSVP_BACKUP_DOWN,warn,critical,RSVP dự phòng bị down khi xảy ra sự cố RSVP bị 1 vấn đề nào đấy thì dẫn đến traffic bi mất,Kiểm tra cấu hình RSVP backup,Telegram + báo bộ phận liên quan
+DAEMON-4-RPD_RSVP_BYPASS_UP,warn,info,Ngưỡng bảo vệ liên kết RSVP đã được thiết lập ,"Đây là thông báo, không phải lỗi",Telegram
+DAEMON-4-RPD_RSVP_NBRDOWN,warn,info,Các node trung gian của giao thức RSVP  down.,"Cảnh báo về sysadmin, kiểm tra hệ thống những node down",Telegram
+DAEMON-4-RPD_RSVP_NBRUP,warn,info,Các node trung gian RSVP up,"Cảnh báo về sysadmin, kiểm tra lại những node đã up",Telegram
+DAEMON-4-RPD_SCHED_CALLBACK_LONGRUNTIME,warn,info,Mô-đun chỉ định của quy trình giao thức định tuyến (rpd) đã chạy quá lâu,"Module sẽ giảm hiệu suất khi hoạt động, cần cảnh báo về sysadmin để theo dõi thêm",Telegram
+DAEMON-4-RPD_SCHED_CUMULATIVE_LONGRUNTIME,warn,critical,Thông báo khi một số module của quá trình định tuyến đã không hoạt động trong thời gian quá lâu,"Module sẽ giảm hiệu suất khi hoạt động, cần cảnh báo về sysadmin để theo dõi thêm",Telegram
+DAEMON-4-RPD_SCHED_MODULE_LONGRUNTIME,warn,critical,Thông báo khi một số module của quá trình định tuyến hoạt động trong thời gian quá lâu,"Module sẽ giảm hiệu suất khi hoạt động, cần cảnh báo về sysadmin để theo dõi thêm",Telegram
+DAEMON-4-SNMP_TRAP_LINK_DOWN,warn,info,SNMP chủ động tiến hành tạo ra linkDown trap vì interface được chỉ định đã thay đổi trạng thái thành down,"Do interface có cảnh báo down, cảnh báo về sysadmin",Telegram
+DAEMON-4-UI_MASTERSHIP_EVENT,warn,info,"Một số thành phần nền tảng định tuyến dự phòng sử dụng một hệ thống master / standby, trong đó thành phần master đang hoạt động và chế độ chờ không hoạt động nhưng đã sẵn sàng để đảm nhận vai trò làm chủ. Người dùng đã chỉ định đã thực hiện thao tác được chỉ định để sửa đổi sự quản lý thành phần.","Đây là thông báo, không phải lỗi",Telegram
+DAEMON-4-UI_REBOOT_EVENT,warn,info, Khởi động lại theo yêu cầu của người dùng chỉ định.,Cảnh báo hệ thống bị reboot và người dùng đang truy cập về sysadmin,Telegram
+DAEMON-4-VRRPD_NEW_BACKUP,warn,info,Thông báo khi một interface được chỉ định trở thành VRRP Backup,"Đây là thông báo, không phải lỗi",Telegram
+DAEMON-4-VRRPD_NEW_MASTER,warn,info,Thông báo khi một interface được chỉ định trở thành VRRP Master,"Đây là thông báo, không phải lỗi",Telegram
+INTERACT-3-UI_COMMIT_ROLLBACK_FAILED,error,critical,"Lỗi cấu hình sau khi commit confirm vài phút nhưng không confirm, hệ thống không tự động rollback lại cấu hình cũ","Cảnh báo về sysadmin, kiểm tra và cấu hình lại hệ thống",Telegram
+INTERACT-4-UI_COMMIT_COMPLETED,warn,info,Các thay đổi đối với cấu hình ứng viên đã được thực hiện thành công.,"Đây là thông báo, không phải lỗi",
+INTERACT-4-UI_RESTART_EVENT,warn,info,restart hệ thống thành công,"Đây là thông báo, không phải lỗi",
+INTERACT-4-UI_RESTART_FAILED_EVENT,warn,info,restart hệ thống thất bại,"Đây là thông báo, không phải lỗi",
+KERN-3-KERN_ARP_DUPLICATE_ADDR,error,critical,"Trùng địa chỉ IP, MAC","Cảnh báo về sysadmin, có thể clear bảng ARP",Telegram
+USER-3-DH_SVC_MULTICAST_FAILURE,error,critical,Dịch vụ multicast thất bại,"Đây là thông báo, không phải lỗi",
+USER-3-DH_SVC_SENDMSG_FAILURE,error,critical,Dịch vụ gửi tin nhắn thất bại,"Đây là thông báo, không phải lỗi",
+USER-3-EVENTD_CONFIG_CHANGE_FAILED,error,critical,Thực hiện thay đổi cấu hình thất bại,"Đây là thông báo, không phải lỗi",Telegram
+USER-3-EVENTD_CONFIG_CHANGE_SUCCESS,error,info,Thực hiện thay đổi cấu hình thành công ,"Đây là thông báo, không phải lỗi",Telegram
+USER-3-LIBJNX_EXEC_FAILED,error,critical,Một quá trình Junos được gọi là exec () gọi hệ thống trong khi tạo một tiến trình con để thực hiện lệnh chỉ định cho nó. Gọi hệ thống không thành công.,"Đây là thông báo, không phải lỗi",Telegram
+USER-3-LIBJNX_SOCKET_FLUSH_TIMEOUT,error,critical,"Các quá trình khác nhau của hệ thống sử dụng các khe cắm cho Inter-process Communication, và trong giai đoạn chấm dứt của quá trình, ổ cắm sẽ được làm sạch để đảm bảo rằng tất cả các dữ liệu được gửi đã nhận được bởi quá trình đồng đẳng. Nếu thao tác tuôn ra mất quá nhiều thời gian, tuôn ra bị hủy bỏ và quá trình chấm dứt hoàn thành.",,Telegram
+USER-4-DH_SVC_ROUTE_ADDITION_FAILURE,warn,info,Quá trình thêm Route thất bại,"Đây là thông báo, không phải lỗi",Telegram
+USER-4-LIBJSNMP_NS_LOG_WARNING,warn,critical,Lỗi SNMP,Cảnh báo về sysadmin,Telegram
+AUTH-3,error,,,,
+CONFLICT-4,warn,,,,
+CONFLICT-4-RPD_CFG_TRACE_FILE_MISSING,warn,,,,
+DAEMON-3,error,,,,
+DAEMON-3-BGP_WRITE_WOULD_BLOCK,error,,,,
+DAEMON-3-CMLC,error,,,,
+DAEMON-3-COSD_GENCFG_WRITE_FAILED,error,,,,
+DAEMON-3-IFDE,error,,,,
+DAEMON-3-JTASK_SCHED_SLIP,error,,,,
+DAEMON-3-KCOM_LIB_ERROR,error,,,,
+DAEMON-3-PS_FAILURE,error,,,,
+DAEMON-3-SPD_CONN_FAILURE,error,,,,
+DAEMON-3-WARNING,warn,,,,
+DAEMON-4,warn,,,,
+DAEMON-4-BGP_NLRI_MISMATCH,warn,,,,
+DAEMON-4-DDOS_SCFD_FLOW_AGGREGATED,warn,,,,
+DAEMON-4-RPD_RSVP_BYPASS_DOWN,warn,,,,
+KERN-3,error,,,,
+KERN-3-IF_MSG_IFD_BULK_ALARM,error,,,,
+KERN-3-IF_MSG_IFD_BULK_MUP_DOWN,error,,,,
+KERN-4,warn,,,,
+NTP-3,error,,,,
+PFE-3,error,,,,
+PFE-4,warn,,,,
+SYSLOG-3,error,,,,
+USER-3,error,,,,
+USER-4-UI_CLI_MMAP_INCREASE,warn,,,,
+DAEMON-3-UI_CHILD_SIGNALED,error,,,,

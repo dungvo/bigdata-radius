@@ -84,6 +84,36 @@ object ParseAndCountConnLog {
     val bProducerConfig: Broadcast[Map[String, String]] = sc.broadcast(producerConfig)
     //val bProducerConfig: Broadcast[Predef.Map[String,Object]] = sc.broadcast(producerConfig)
     val bAnomalyDetectKafkaTopic: Broadcast[String] = sc.broadcast(radiusAnomalyDetectionKafkaTopic)
+    val bBrasNameLookUp: Broadcast[Predef.Map[String,String]] = sc.broadcast(Predef.Map("HCM-MP03-2-NEW" -> "HCM-MP03-2-NEW", "VPC-MP01" -> "VPC-MP01-1",
+      "HN-MP02-8" -> "HN-MP02-8", "LGI-MP01-2" -> "LGI-MP01-2", "DTP-MP01-2" -> "DTP-MP01-2", "HDG-MP01-3" -> "HDG-MP01-3", "TQG-MP01-1" -> "TQG-MP01-1",
+      "VLG-MP01-1" -> "VLG-MP01-1", "AGG-MP01-1" -> "AGG-MP01-1", "HN-MP01-1" -> "HN-MP01-1", "HN-MP05-1" -> "HN-MP05-1", "DNI-MP01-2-NEW" -> "DNI-MP01-2",
+      "VTU-MP01-1-NEW" -> "VTU-MP01-1-NEW", "BDH-MP01-2" -> "BDH-MP01-2", "DLK-MP01-2" -> "DLK-MP01-2", "QBH-MP01-2" -> "QBH-MP01-2",
+      "HN-MP03-1" -> "HN-MP03-1", "TNH-MP01-1" -> "TNH-MP01-1", "CMU-MP01-2" -> "CMU-MP01-2", "BNH-MP01-3" -> "BNH-MP01-3", "THA-MP01-2" -> "THA-MP01-2", "NAN-MP01-3" -> "NAN-MP01-3",
+      "PYN-MP01-2" -> "PYN-MP01-2", "HN-MP02-5" -> "HN-MP02-5", "TNN-MP03" -> "TNN-MP01-3", "IXIA-test" -> "QNH-MP02", "TGG-MP01-2" -> "TGG-MP01-2", "KGG-MP01-3" -> "KGG-MP01-3",
+      "LDG-MP01-2" -> "LDG-MP01-2", "QNI-MP01-1" -> "QNI-MP01-1", "QNH-MP03" -> "QNH-MP03", "DLK-MP01-4" -> "DLK-MP01-4", "YBI-MP02" -> "YBI-MP01-2", "QNM-MP01-2" -> "QNM-MP01-2",
+      "BPC-MP01-1" -> "BPC-MP01-1", "GLI-MP01-2" -> "GLI-MP01-2", "VTU-MP01-2-NEW" -> "VTU-MP01-2-NEW", "HCM-MP06-1" -> "HCM-MP06-1", "LSN-MP02" -> "LSN-MP01-2", "HN-MP02-1-NEW" -> "HN-MP02-1",
+      "QTI-MP01-1" -> "QTI-MP01-1", "HN-MP02-2" -> "HN-MP02-2", "HCM-MP02-1" -> "HCM-MP05-1", "BDH-MP01-4" -> "BDH-MP01-4", "HYN-MP01-3" -> "HYN-MP01-3", "BDG-MP01-1-New" -> "BDG-MP01-1",
+      "YBI-BRAS01" -> "YBI-MP01-1", "HN-MP02-7" -> "HN-MP02-7", "LGI-MP01-1" -> "LGI-MP01-1", "7200-FCAM-09" -> "TNH-MP01-1",
+      "HCM-MP05-5" -> "HCM-MP05-5", "DAH-MP02" -> "DAH-MP01-2", "DTP-MP01-1" -> "DTP-MP01-1", "HP-MP01-NEW" -> "HPG-MP01-1", "STY-MP02" -> "STY-MP01-2",
+      "LDG-MP01-4" -> "LDG-MP01-4", "HTH-MP02" -> "HTH-MP01-2", "BDH-MP01-1" -> "BDH-MP01-1", "DLK-MP01-1" -> "DLK-MP01-1", "QBH-MP01-1" -> "QBH-MP01-1",
+      "CTO-MP01-2-NEW" -> "CTO-MP01-2", "KTM-MP01-2" -> "KTM-MP01-2", "HYN-MP02" -> "HYN-MP02", "CMU-MP01-1" -> "CMU-MP01-1", "BNH-MP01-2" -> "BNH-MP01-2",
+      "HCM-QT-MP02-2" -> "HCM-MP05-2", "BRA-MP01-2" -> "BRA-MP01-2", "HCM-MP04-1-NEW" -> "HCM-MP05-1", "DNG-MP01-1" -> "DNG-MP01-1", "TVH-MP01-2" -> "TVH-MP01-2",
+      "HN-MP02-4" -> "HN-MP02-4", "BDG-MP01-2-New" -> "BDG-MP01-2", "HCM-MP05-2" -> "HCM-MP03-2-NEW", "PTO-MP02" -> "PTO-MP01-2", "HCM-MP01-2" -> "HCM-MP05-2",
+      "NTN-MP01-2" -> "NTN-MP01-2", "PYN-MP01-1" -> "PYN-MP01-1", "THA-MP01-4" -> "THA-MP01-4", "NAN-MP01-2" -> "NAN-MP01-2", "HDG-MP01-2" -> "HDG-MP01-2",
+      "QNH-MP02" -> "QNH-MP02", "CTO-MP01-1" -> "CTO-MP01-1", "LDG-MP01-1" -> "LDG-MP01-1", "TQG-MP01-2" -> "TQG-MP01-2", "HP-MP02-NEW" -> "HPG-MP01-1",
+      "BLC-MP01-2" -> "BLC-MP01-2", "TGG-MP01-1" -> "TGG-MP01-1", "KGG-MP01-2" -> "KGG-MP01-2", "GLI-MP01-1" -> "GLI-MP01-1", "THA-MP01-1" -> "THA-MP01-1",
+      "HD-BRAS01" -> "YBI-MP01-1", "BTE-MP01-2" -> "BTE-MP01-2", "DLK-MP01-3" -> "DLK-MP01-3", "BDH-MP01-3" -> "BDH-MP01-3", "NAN-MP01-4" -> "NAN-MP01-4",
+      "7200-FCAM-08" -> "TNH-MP01-2", "HCM-MP05-4" -> "HCM-MP05-1", "GLI-MP01-4" -> "GLI-MP01-4", "DAH-MP01" -> "DAH-MP01-1", "NTG-MP01-02" -> "NTG-MP01-02",
+      "BTN-MP01-1-NEW" -> "BTN-MP01-1-NEW", "STY-MP01" -> "STY-MP01-1", "HDG-MP01-4" -> "HDG-MP01-4", "TNN-MP02" -> "TNN-MP01-2", "KTM-MP01-1" -> "KTM-MP01-1",
+      "QNH-MP04" -> "QNH-MP04", "HYN-MP01" -> "HYN-MP01", "KGG-MP01-4" -> "KGG-MP01-4", "BRA-MP01-1" -> "BRA-MP01-1", "QNI-MP01-2" -> "QNI-MP01-2", "VLG-MP01-2" -> "VLG-MP01-2",
+      "AGG-MP01-2" -> "AGG-MP01-2", "VPC-MP02" -> "VPC-MP01-2", "LDG-MP01-3" -> "LDG-MP01-3", "BNH-MP01-1" -> "BNH-MP01-1", "HTH-MP01" -> "HTH-MP01-1",
+      "HUE-MP01-1-NEW" -> "HUE-MP01-1-NEW", "QNM-MP01-1" -> "QNM-MP01-1", "LSN-MP01" -> "LSN-MP01-1", "HN-MP03-2" -> "HN-MP03-2", "BNH-MP01-4" -> "BNH-MP01-4",
+      "TNH-MP01-2" -> "TNH-MP01-2", "HCM-MP01-1" -> "HCM-MP05-1", "HN-MP05-2" -> "HN-MP05-2", "HCM-MP05-1" -> "HCM-MP03-1-NEW", "QTI-MP01-2" -> "QTI-MP01-2",
+      "HN-MP01-2" -> "HN-MP01-2", "IXIA" -> "YBI-MP01-2", "PTO-MP01" -> "PTO-MP01-1", "THA-MP01-3" -> "THA-MP01-3", "NAN-MP01-1" -> "NAN-MP01-1", "TVH-MP01-1" -> "TVH-MP01-1",
+      "HN-MP02-3" -> "HN-MP02-3", "HCM-MP03-1-NEW" -> "HCM-MP03-1-NEW", "BTN-MP01-2-NEW" -> "BTN-MP01-2-NEW", "QNH-MP01" -> "QNH-MP01", "TNN-MP01-NEW" -> "TNN-MP01-1",
+      "HN-MP02-6" -> "HN-MP02-6", "KGG-MP01-1" -> "KGG-MP01-1", "HDG-MP01-1" -> "HDG-MP01-1", "BLC-MP01-1" -> "BLC-MP01-1", "DNI-MP01-1-NEW" -> "DNI-MP01-1",
+      "TNN-MP04" -> "TNN-MP01-4", "BTE-MP01-1" -> "BTE-MP01-1", "HUE-MP01-2-NEW" -> "HUE-MP01-2-NEW", "NTG-MP01-01" -> "NTG-MP01-01", "HCM-MP04-2" -> "HCM-MP05-2",
+      "NTN-MP01-1" -> "NTN-MP01-1", "BPC-MP01-2" -> "BPC-MP01-2", "GLI-MP01-3" -> "GLI-MP01-3", "HYN-MP01-4" -> "HYN-MP01-4", "HCM-MP06-2" -> "HCM-MP06-2", "7200-FCAM-07" -> "BPC-MP01-2"))
     //val bGson = sc.broadcast[Gson](new Gson())
     // PG properties :
     val jdbcUrl = PostgresIO.getJDBCUrl(postgresConfig)
@@ -102,7 +132,7 @@ object ParseAndCountConnLog {
     }
     val sqlLookup = org.apache.spark.sql.functions.udf(lookupHostName)
 
-    val objectConnLogs: DStream[ConnLogLineObject] = lines.transform(extractValue(bConLogParser))
+    val objectConnLogs: DStream[ConnLogLineObject] = lines.transform(extractValue(bConLogParser,bBrasNameLookUp))
 
     // SAVE TO CASSANDRA
 /*        objectConnLogs.saveToCassandra(cassandraConfig("keySpace").toString,
@@ -588,7 +618,7 @@ object ParseAndCountConnLog {
 
   def toLowerCase   = (lines: RDD[String]) => lines.map(words => words.toLowerCase)
   //FIXME !!!
-  def extractValue  = (parser: Broadcast[ConnLogParser]) => (lines: RDD[String]) =>
+  def extractValue  = (parser: Broadcast[ConnLogParser],brasNameLookUp: Broadcast[Predef.Map[String,String]]) => (lines: RDD[String]) =>
     lines.map{ line =>
       val parsedObject = parser.value.extractValues(line).getOrElse(None)
       parsedObject match{
@@ -596,7 +626,12 @@ object ParseAndCountConnLog {
         case _ => None
       }
       parsedObject
-    }.filter(x => x != None).map(ob => ob.asInstanceOf[ConnLogLineObject])
+    }.filter(x => x != None).map{ob =>
+      ob.asInstanceOf[ConnLogLineObject]
+      /*val cll = ob.asInstanceOf[ConnLogLineObject]
+      val cllMapped = new ConnLogLineObject(cll.time,cll.session_id,cll.connect_type,cll.name,brasNameLookUp.value.getOrElse(cll.content1,cll.content1),cll.content2)
+      cllMapped*/
+    }
 
   /*def extractValue  = (parser: Broadcast[ConnLogParser]) => (lines: RDD[String]) =>
   lines.map(line => parser.value.extractValues(line).get.asInstanceOf[ConnLogLineObject])*/
