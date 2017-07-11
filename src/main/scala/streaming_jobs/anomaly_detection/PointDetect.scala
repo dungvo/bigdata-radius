@@ -33,9 +33,36 @@ class PointDetect(config: PointDetectConfig,source: KafkaDStreamSource) extends 
              table "bras_theshold",
              keyspace "radius",
              pushdown "true")"""
+
+        val createDLL_brashostmapping  =
+          """CREATE TEMPORARY VIEW brashostmapping
+             USING org.apache.spark.sql.cassandra
+             OPTIONS (
+             table "brashostmapping",
+             keyspace "radius",
+             pushdown "true")"""
+
+        val createDLL_inf_host_error_counting  =
+          """CREATE TEMPORARY VIEW inf_host_error_counting
+             USING org.apache.spark.sql.cassandra
+             OPTIONS (
+             table "inf_host_error_counting",
+             keyspace "radius",
+             pushdown "true")"""
+
+        val createDLL_noc_bras_error_counting  =
+          """CREATE TEMPORARY VIEW noc_bras_error_counting
+             USING org.apache.spark.sql.cassandra
+             OPTIONS (
+             table "noc_bras_error_counting",
+             keyspace "radius",
+             pushdown "true")"""
         val spark = sc.sqlContext
         spark.sql(createDDL)
         spark.sql(createDLLBrasThreshold)
+        spark.sql(createDLL_brashostmapping)
+        spark.sql(createDLL_inf_host_error_counting)
+        spark.sql(createDLL_noc_bras_error_counting)
     /*    DetectAnomaly.detect(ssc,
           sc,
           input,

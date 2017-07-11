@@ -14,6 +14,7 @@ import core.streaming.FualttoleranceSparkStreamingApplication
 
 import scala.concurrent.duration.FiniteDuration
 import core.streaming.{MapBroadcast, SparkLogLevel}
+import org.apache.log4j.{Level, Logger}
 
 import scala.Predef.Map
 import scala.collection.{Map, mutable}
@@ -82,6 +83,8 @@ class ConnJob(config: ConnJobConfig, source: KafkaDStreamSource) extends SparkSt
 object ConnJob{
   def main(args: Array[String]): Unit = {
     // Set log level - defaul is [WARN]
+    Logger.getLogger("org").setLevel(Level.OFF)
+    Logger.getLogger("akka").setLevel(Level.OFF)
     SparkLogLevel.setStreamingLogLevels()
     // Create new job config.
     val config = ConnJobConfig()

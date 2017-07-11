@@ -101,7 +101,7 @@ object DetectAnomaly {
                row.getAs[Double]("rateSL"),
                row.getAs[Double]("rateLS"),
                row.getAs[java.sql.Timestamp]("time"),
-               0
+               0,0,0,0,0
              )
              outlier
            }

@@ -243,10 +243,13 @@ object ParseAndCountConnLog {
         val brasAndHost: DataFrame = brasInfo.select("name","content1").where(col("connect_type") === "SignIn")
                                     .withColumn("host",sqlLookup(col("name")))
                                     .withColumnRenamed("content1","bras_id")
-                                    .select("bras_id","host")
+                                    .select("bras_id","host").filter($"host".isNotNull && length(trim($"host")) > 0)
         //Save to cassandra -- table - keyspace - cluster.
+        //println(" BRAS AND HOST")
+        //brasAndHost.show()
         //TODO : HARDCODE !!!!!!
         brasAndHost.write.mode("append").cassandraFormat("brashostmapping","radius","test").save()
+        //       df.write.mode("append").cassandraFormat("brashostmapping","radius","test").save()
        /* val timeFunc: (AnyRef => String) = (arg: AnyRef) => {
           getCurrentTime()
         }
@@ -627,11 +630,11 @@ object ParseAndCountConnLog {
       }
       parsedObject
     }.filter(x => x != None).map{ob =>
-      ob.asInstanceOf[ConnLogLineObject]
-      /*val cll = ob.asInstanceOf[ConnLogLineObject]
-      val cllMapped = new ConnLogLineObject(cll.time,cll.session_id,cll.connect_type,cll.name,brasNameLookUp.value.getOrElse(cll.content1,cll.content1),cll.content2)
-      cllMapped*/
-    }
+      //ob.asInstanceOf[ConnLogLineObject]
+      val cll = ob.asInstanceOf[ConnLogLineObject]
+      val cllMapped = new ConnLogLineObject(cll.time,cll.session_id,cll.connect_type,cll.name,brasNameLookUp.value.getOrElse(cll.content1,"n/a"),cll.content2)
+      cllMapped
+    }.filter(x => x.content1 != "n/a")
 
   /*def extractValue  = (parser: Broadcast[ConnLogParser]) => (lines: RDD[String]) =>
   lines.map(line => parser.value.extractValues(line).get.asInstanceOf[ConnLogLineObject])*/
@@ -681,7 +684,8 @@ object SaveToCassTest{
   def main(args: Array[String]): Unit = {
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
-    val sparkConfig = new SparkConf().set( "spark.cassandra.connection.host" , "localhost")
+
+    val sparkConfig = new SparkConf().set( "spark.cassandra.connection.host" , "172.27.11.156")
       .set("spark.cassandra.output.batch.size.rows" , "auto")
     val sparkSession = SparkSession.builder().appName("wirteCTest").master("local[2]").config(sparkConfig).getOrCreate()
     //val rdd = sparkSession.sparkContext.parallelize(Seq(("Bras1","Host1"),("Bras2","Host2"),("Bras3","Host3"),("Bras4","Host4"),("Bras5","Host5")))
@@ -691,6 +695,19 @@ object SaveToCassTest{
     df.write.mode("append").cassandraFormat("brashostmapping","radius","test").save()
     // TODO never use overwrite mode.
     //df.write.mode("overwrite").cassandraFormat("brashostmapping","radius","test").save()
+    val config = ConnJobConfig()
+    val postgresConfig: Predef.Map[String, String] =  config.postgresStorage
+    // get jdbc url.
+    val jdbcUrl = PostgresIO.getJDBCUrlForRead(postgresConfig)
+    //FIXME :
+    // Ad-hoc fixing
+    val pgProperties = new Properties()
+    pgProperties.setProperty("driver","org.postgresql.Driver")
+
+    //
+    // Load name and INF host from database -> df
+    val lookupDf  = PostgresIO.selectedByColumn(sparkSession,jdbcUrl,"internet_contract",List("name","host"),pgProperties)
+    lookupDf.show()
 
   }
 }
