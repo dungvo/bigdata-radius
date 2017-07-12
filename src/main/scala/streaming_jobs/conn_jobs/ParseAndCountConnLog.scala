@@ -687,12 +687,42 @@ object SaveToCassTest{
 
     val sparkConfig = new SparkConf().set( "spark.cassandra.connection.host" , "172.27.11.156")
       .set("spark.cassandra.output.batch.size.rows" , "auto")
+      .set("spark.mongodb.output.uri", "mongodb://172.27.11.146:27017/radius.outlier")
     val sparkSession = SparkSession.builder().appName("wirteCTest").master("local[2]").config(sparkConfig).getOrCreate()
     //val rdd = sparkSession.sparkContext.parallelize(Seq(("Bras1","Host1"),("Bras2","Host2"),("Bras3","Host3"),("Bras4","Host4"),("Bras5","Host5")))
     val rdd = sparkSession.sparkContext.parallelize(Seq(("BrasC","HostCC"),("BrasB","HostBB")))
+    //val rdd2 = sparkSession.sparkContext.parallelize(Seq(()))
+    val rdd2 = sparkSession.sparkContext.parallelize(Seq(("BrasC","MCC")))
+    val mongordd = sparkSession.sparkContext.parallelize(Seq(("LDG-MP01-3",2,2,3,3,"normal")))
+    val context = sparkSession.sparkContext
     import sparkSession.implicits._
-    val df = rdd.toDF("bras_id","host")
-    df.write.mode("append").cassandraFormat("brashostmapping","radius","test").save()
+    val mongodf = mongordd.toDF("bras_id","logoff_distinct_count","logoff_total_count","signin_distinct_count","signin_total_count","label").withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+
+    mongodf.show
+    mongodf.write.mode("append").mongo(WriteConfig(Map("collection"->"outlier"),Some(WriteConfig(context))))
+
+
+
+/*    val df = rdd.toDF("bras_id","host")
+    val schema = df.schema
+    val empty = sparkSession.emptyDataFrame
+    val sparkConetx = sparkSession.sparkContext
+
+    val df2 = rdd2.toDF("bras_id","mm")
+    val joined = df.join(df2,"bras_id")
+    val leftJoind = df.join(df2,Seq("bras_id"),"left_outer")
+    joined.show()
+    leftJoind.show()
+    val normal: (String => String) = (arg: String) =>{
+      "true"
+    }
+    val df3 = df.join(empty,"bras_id")
+    df3.show()
+
+    val sqlLookup = org.apache.spark.sql.functions.udf(normal)
+    val test = leftJoind.withColumn("test",sqlLookup(col("bras_id")))
+    test.show()*/
+   /* df.write.mode("append").cassandraFormat("brashostmapping","radius","test").save()
     // TODO never use overwrite mode.
     //df.write.mode("overwrite").cassandraFormat("brashostmapping","radius","test").save()
     val config = ConnJobConfig()
@@ -707,7 +737,7 @@ object SaveToCassTest{
     //
     // Load name and INF host from database -> df
     val lookupDf  = PostgresIO.selectedByColumn(sparkSession,jdbcUrl,"internet_contract",List("name","host"),pgProperties)
-    lookupDf.show()
+    lookupDf.show()*/
 
   }
 }

@@ -21,6 +21,10 @@ import org.joda.time.DateTime
 import util.DatetimeController
 import scala.concurrent.duration.FiniteDuration
 import java.util
+
+import com.mongodb.spark.MongoSpark
+import com.mongodb.spark.config.WriteConfig
+import com.mongodb.spark.sql._
 /**
   * Created by hungdv on 25/06/2017.
   */
@@ -41,12 +45,23 @@ object DetectAnomalyVer2 {
     val bPowerBIProxyHost = sc.broadcast(powerBIConfig("proxy_host"))
     lines.foreachRDD {
       line =>
+        val context = line.sparkContext
         import ss.implicits._
         val sc = ss.sparkContext
 
         def spark = ss.sqlContext
         val upperBound = new UpperIQR
         val winMed = new MovingMedian
+        val normal: (String => String) = (arg: String) =>{
+          "normal"
+        }
+        val sqlAlwaysNormal = org.apache.spark.sql.functions.udf(normal)
+
+        val outlier: (String => String) = (arg: String) =>{
+          "outlier"
+        }
+        val sqlAlwaysOutlier = org.apache.spark.sql.functions.udf(outlier)
+
         //val window = Window.partitionBy("bras_id").orderBy($"time").rowsBetween(-4, 0)
         // Donot use orderBy here.
         val window2 = Window.partitionBy("bras_id")
@@ -59,7 +74,7 @@ object DetectAnomalyVer2 {
         //println("COUNTRAW :" + brasCounDFRaw.count())
         val brasCounDFrank = brasCounDFRaw.withColumn("rank_time",rank().over(window3)).cache()
         val brasCounDF= brasCounDFrank.select("*").where(col("rank_time") <= lit(15)).cache()
-        //val newestBras = brasCounDFrank.select("*").where(col("rank_time") === lit(1)).cache()
+        val newestBras = brasCounDFrank.select("*").where(col("rank_time") === lit(1)).drop(col("rank_time")).cache()
         brasCounDFrank.unpersist()
         //println()
         //println("COUNT :" + brasCounDF.count())
@@ -142,7 +157,24 @@ object DetectAnomalyVer2 {
 
 
         if(result3.count > 0){
-          val bras_result3_ids = result3.select("bras_id").rdd.map(r => r(0)).collect()
+          val bras_result3_ids_df = result3.select("bras_id").cache()
+          val bras_result3_ids = bras_result3_ids_df.rdd.map(r => r(0)).collect()
+          val outlier_with_status = bras_result3_ids_df.withColumn("label",sqlAlwaysOutlier(col("bras_id")))
+          bras_result3_ids_df.unpersist()
+          val mongoDF = newestBras.join(outlier_with_status,Seq("bras_id"),"left_outer").na.fill("normal")
+          // Save to Mongo.
+          try{
+            //MongoSpark.save(mongoDF.write.option("collection","mongodb://172.27.11.146:27017/radius.outlier").mode("append"))
+            //println("Mongo DF ")
+            //mongoDF.show
+            mongoDF.write.mode("append").mongo(WriteConfig(Map("collection"->"outlier"),Some(WriteConfig(context))))
+            //mongoDF.write.mode("append").mongo()
+          }catch {
+            case e: Exception => println("Error when saving data to Mongo " +  e.getMessage)
+            case _ => println("Dont care :))")
+          }
+
+
           if(bras_result3_ids.length > 0){
             var bras_result3_IdsString = "("
             bras_result3_ids.foreach{x =>
@@ -154,10 +186,10 @@ object DetectAnomalyVer2 {
 
             val timestamp_mapping = new org.joda.time.DateTime(now).minusMinutes(2).toString("yyyy-MM-dd HH:mm:ss.SSS")
             val brashostMapping = spark.sql(s"Select * from brashostmapping WHERE bras_id IN $bras_result3_IdsString").cache()
-            println("Bras host mapping")
-            brashostMapping.show()
+            //println("Bras host mapping")
+            //brashostMapping.show()
 
-            val hostIds = brashostMapping.select("host").rdd.map(r => r(0)).collect()
+            val hostIds: Array[Any] = brashostMapping.select("host").rdd.map(r => r(0)).collect()
             if(hostIds.length > 0){
               var host_IdsString = "("
               hostIds.foreach{x =>
@@ -171,35 +203,23 @@ object DetectAnomalyVer2 {
               println("noc_bras_error")
               noc_bras_error.show()
               val inf_host_error = spark.sql(s"Select * from inf_host_error_counting WHERE host IN $host_IdsString AND time > '$timestamp_mapping'").cache()
-              println("inf_host_error")
-              inf_host_error.show()
+              /*println("inf_host_error")
+              inf_host_error.show()*/
               val noc_be_sum = noc_bras_error.groupBy(col("devide")).agg(sum("total_info_count").as("info_status"),sum("total_critical_count").as(("critical_status")))
                 .withColumnRenamed("devide","bras_id")
-
+              println("noc_be_sum ")
+              noc_be_sum.show()
               val inf_he_sum = inf_host_error.groupBy(col("host")).agg(sum("cpe_error").as("cpe_error_status_inf"), sum("lostip_error").as("lostip_error_status_inf"))
               val inf_mapping = inf_he_sum.join(brashostMapping,"host")
               val inf_sum_by_bras = inf_mapping.groupBy(col("bras_id")).agg(sum("cpe_error_status_inf").as("cpe_error_status"), sum("lostip_error_status_inf").as("lostip_error_status"))
-
-              val result_noc_inf = result3.join(inf_sum_by_bras,"bras_id").join(noc_be_sum,"bras_id")
-                .select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time","cpe_error_status","lostip_error_status","info_status","critical_status")
+              val result_inf = result3.join(inf_sum_by_bras,Seq("bras_id"),"left_outer")
+              val result_noc_inf = result_inf.join(noc_be_sum,Seq("bras_id"),"left_outer")
+                .select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time","cpe_error_status","lostip_error_status","info_status","critical_status").na.fill(-1)
                 .cache()
               println("FINAL RESULS -----------")
               result_noc_inf.show
-              result_noc_inf.unpersist()
-              noc_bras_error.unpersist()
-              inf_host_error.unpersist()
-            }
-
-
-            brashostMapping.unpersist()
-          }
-
-        }
-
-        // MAPPING HERE.
-
-
-        /*if(result_noc_inf.count() > 0){
+              //println(result_noc_inf.schema)
+              if(result_noc_inf.count() > 0){
           try{
             val outlierObjectRDD = result_noc_inf.rdd.map { row =>
               try{
@@ -212,10 +232,10 @@ object DetectAnomalyVer2 {
                   row.getAs[Double]("rateLS"),
                   time,
                   DatetimeController.sqlTimeStampToNumberFormat(time),
-                  row.getAs[Int]("cpe_error_status"),
-                  row.getAs[Int]("lostip_error_status"),
-                  row.getAs[Int]("info_status"),
-                  row.getAs[Int]("critical_status")
+                  row.getAs[Long]("cpe_error_status"),
+                  row.getAs[Long]("lostip_error_status"),
+                  row.getAs[Long]("info_status"),
+                  row.getAs[Long]("critical_status")
                 )
                 println("OUTLIER : -----------------------------------------------------")
                 println(outlier)
@@ -255,7 +275,30 @@ object DetectAnomalyVer2 {
             case e : Throwable => println("ERROR IN SENDING BLOCK !!---------------------------------------------------" + e.printStackTrace())
           }
 
-        }*/
+        }
+              result_noc_inf.unpersist()
+              noc_bras_error.unpersist()
+              inf_host_error.unpersist()
+
+            }
+
+            brashostMapping.unpersist()
+          }
+        }else{
+          val mongoDF = newestBras.withColumn("label",sqlAlwaysNormal(col("bras_id")))
+          try{
+            println("Mongo DF ")
+            //mongoDF.show
+            mongoDF.write.mode("append").mongo(WriteConfig(Map("collection"->"outlier"),Some(WriteConfig(context))))
+            //mongoDF.write.mode("append").mongo()
+            //MongoSpark.save(mongoDF.write.option("collection","mongodb://172.27.11.146:27017/radius.outlier").mode("append"))
+          }catch {
+            case e: Exception => println("Error when saving data to Mongo " +  e.getStackTrace)
+            case _ => println("Dont care :))")
+          }
+          //save to mongo.
+        }
+
         // Unpersist
         brasCounDFRaw.unpersist()
         brasCounDF.unpersist()
@@ -263,7 +306,7 @@ object DetectAnomalyVer2 {
         result3.unpersist()
         theshold.unpersist()
         result3tmp.unpersist()
-
+        newestBras.unpersist()
         val now2 = System.currentTimeMillis()
         val timeExecute = (now2 - now)/1000
         println("Execution time for batch : " + timeExecute + " s ")
@@ -288,8 +331,11 @@ case class BrasCoutOutlier(bras_id: String,
                            rateLS: Double,
                            time: Timestamp,
                            timeInNumber: Float,
-                          cpe_error_status: Int,
-                          lostip_error_status: Int,
-                          info_status: Int,
-                          critical_status: Int
+                          cpe_error_status: Long,
+                          lostip_error_status: Long,
+                          info_status: Long,
+                          critical_status: Long
                           ) extends Serializable{}
+
+
+

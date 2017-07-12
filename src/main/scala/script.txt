@@ -74,3 +74,124 @@ Run example application and publish a few words on input topic using Kafka conso
 
 ./bin/kafka-topics.sh --create --zookeeper localhost:2182 --replication-factor 1 --partitions 1 --topic noc-rawlogs
 ./bin/kafka-topics.sh --create --zookeeper localhost:2182 --replication-factor 1 --partitions 1 --topic inf-rawlogs
+
+
+
+///////////////////////////////////////// MONGO
+cd <MONGO_DIR>\bin -> vao thu muc bin
+run 3 cmds sau:
+mongod --port 27017 --dbpath ~/mongodb/data/rs01 --replSet rs >> mongo1.log &
+
+mongod --port 27018 --dbpath ~/mongodb/data/rs02 --replSet rs >> mongo2.log &
+
+mongo localhost:27017
+lit
+
+show dbs; -> use raiuds;
+show collections;
+
+db.$collectionName.find(); it it it it it .....
+
+db.createCollection("connlog_bras_count")
+db.createCollection("connlog_inf_count");
+db.createCollection("connlog_accumulative_count");
+db.createCollection("conn_counting");
+db.createCollection("accumulative");
+
+
+
+Cấu hình Replication:
+
+Tạo 2 thư mục tên là rs1 và rs2
+
+
+E:\Server\nosql\mongodb\data\rs01
+E:\Server\nosql\mongodb\data\rs02
+1
+2
+E:\Server\nosql\mongodb\data\rs01
+E:\Server\nosql\mongodb\data\rs02
+Mở lần lượt 2 Command Prompt lên và chạy 2 lệnh này ở thư mục <MONGO_DIR>\bin:
+
+
+mongod --port 27017 --dbpath E:\Server\nosql\mongodb\data\rs01 --replSet rs
+
+mongod --port 27018 --dbpath E:\Server\nosql\mongodb\data\rs02 --replSet rs
+1
+2
+3
+mongod --port 27017 --dbpath E:\Server\nosql\mongodb\data\rs01 --replSet rs
+
+mongod --port 27018 --dbpath E:\Server\nosql\mongodb\data\rs02 --replSet rs
+Tiếp theo, mở một Command Prompt khác lên, chạy lệnh mongo ở thư mục <MONGO_DIR>\bin:
+
+
+mongo localhost:27017
+1
+mongo localhost:27017
+Ngay cái dấu nhắc của mongo shell, chạy lệnh:
+
+
+rs.initiate({
+  _id: "rs",
+  members: [
+    {_id: 0, host: "localhost:27017"},
+    {_id: 1, host: "localhost:27018"}
+  ]})
+1
+2
+3
+4
+5
+6
+rs.initiate({
+  _id: "rs",
+  members: [
+    {_id: 0, host: "localhost:27017"},
+    {_id: 1, host: "localhost:27018"}
+  ]})
+Sau đó, các bạn thoát ra bằng lệnh exit, sau đó chạy lại lệnh:
+
+
+mongo localhost:27017
+1
+mongo localhost:27017
+Nếu các bạn thấy ngay cái dấu nhắc của mongo shell là rs:PRIMARY> thì thôi, nếu là rs:SECONDARY> thì các bạn thoát shell và chạy lệnh mongo lại với tham số localhost:27018, phải làm vậy để connect vào đúng cái PRIMARY thôi.
+
+Giờ là các bạn đang đứng ở PRIMARY shell nha. Chạy các lệnh sau tại dấu nhắc của mongo shell:
+
+
+cfg = rs.conf()
+cfg.members[0].priority = 1
+cfg.members[1].priority = 0.5
+rs.reconfig(cfg)
+1
+2
+3
+4
+cfg = rs.conf()
+cfg.members[0].priority = 1
+cfg.members[1].priority = 0.5
+rs.reconfig(cfg)
+Cái này dùng để set cái thằng chạy ở port 27017 là PRIMARY, thằng kia là SECONDARY dựa vào cái tham số priority của nó. Xong, nếu lần sau có chạy dạng REplication nữa thì thằng chạy ở port 27017 sẽ là PRIMARY.
+
+/root/hungvd8/projects/radius/bigdata-radius-assembly-0.1.0-SNAPSHOT.jar
+
+
+
+Last 10 record :
+db.connlog_bras_count.find().skip(db.connlog_bras_count.count() - 10)
+Last
+db.connlog_accumulative_count.find().skip(db.connlog_accumulative_count.count() - 10)
+db.connlog_inf_count.find().skip(db.connlog_inf_count.count() - 10)
+
+
+
+-------------
+rm /var/lib/mongo/mongod.lock
+systemctl restart mongod
+systemctl stop mongod
+mongod --port 27017 --dbpath ~/mongodb/data/rs01 --replSet rs
+
+mongod --port 27018 --dbpath ~/mongodb/data/rs02 --replSet rs
+

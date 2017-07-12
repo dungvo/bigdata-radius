@@ -89,7 +89,7 @@ object ParseAndSaveNoc {
         val brasErrorCount = brasErAndWaWithFlag.groupBy(col("devide"))
           .agg(sum(col("info_flag")).as("total_info_count"),sum(col("critical_flag")).as("total_critical_count"))
           .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
-
+        //brasErrorCount.show()
         brasErrorCount.write.mode("append").cassandraFormat("noc_bras_error_counting","radius","test").save()
         rdd.unpersist(true)
         brasErAndW.unpersist(true)
