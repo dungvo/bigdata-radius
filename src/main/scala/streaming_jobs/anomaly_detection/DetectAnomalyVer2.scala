@@ -185,6 +185,7 @@ object DetectAnomalyVer2 {
             println("bras_id : " + bras_result3_IdsString)
 
             val timestamp_mapping = new org.joda.time.DateTime(now).minusMinutes(2).toString("yyyy-MM-dd HH:mm:ss.SSS")
+            val noc_timestamp_mapping = new org.joda.time.DateTime(now).minusHours(7).minusMinutes(2).toString("yyyy-MM-dd HH:mm:ss.SSS")
             val brashostMapping = spark.sql(s"Select * from brashostmapping WHERE bras_id IN $bras_result3_IdsString").cache()
             //println("Bras host mapping")
             //brashostMapping.show()
@@ -199,7 +200,7 @@ object DetectAnomalyVer2 {
               host_IdsString = host_IdsString.dropRight(1) + ")"
 
               println("host id : " + host_IdsString)
-              val noc_bras_error = spark.sql(s"Select * from noc_bras_error_counting WHERE devide IN $bras_result3_IdsString AND time > '$timestamp_mapping'").cache()
+              val noc_bras_error = spark.sql(s"Select * from noc_bras_error_counting WHERE devide IN $bras_result3_IdsString AND time > '$noc_timestamp_mapping'").cache()
               println("noc_bras_error")
               noc_bras_error.show()
               val inf_host_error = spark.sql(s"Select * from inf_host_error_counting WHERE host IN $host_IdsString AND time > '$timestamp_mapping'").cache()
