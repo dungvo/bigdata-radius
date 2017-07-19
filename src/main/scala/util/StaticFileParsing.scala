@@ -40,17 +40,34 @@ class StaticFileParsing()  {
     }
     result
   }
+  def readAndParseListBras(path: String): mutable.Map[String,String] = {
+    val bufferReader = io.Source.fromFile(path)
+    val result = mutable.Map[String,String]()
+    for(line <- bufferReader.getLines()){
+      val cols = line.split(",").map(_.trim)
+      val nocName = cols(2)
+      if(cols.length >= 4) {
+        val radiusName = cols(3)
+        result += (("\""+radiusName + "\"")->("\""+ nocName +"\""))
+      }
+    }
+    result
+  }
 }
 object StaticFileTest{
   def main(args: Array[String]): Unit = {
     val path = "/home/hungdv/workspace/bigdata-radius/src/main/resources/bras_final.csv"
     val reader = new StaticFileParsing()
     val resutt = reader.readAndParseBrasMapping(path)
-    println(resutt)
-    println(resutt.size)
+    //println(resutt)
+    //println(resutt.size)
     val erroPath = "/home/hungdv/workspace/bigdata-radius/src/main/resources/list_error.csv"
     val error = reader.readAndParseErrorLevel(erroPath)
     println("----------------------------------------")
-    println(error)
+    //println(error)
+
+    val listbrasPath = "/home/hungdv/workspace/bigdata-radius/src/main/resources/list_bras.csv"
+    val bras_Radius_Noc = reader.readAndParseListBras(listbrasPath)
+    println(bras_Radius_Noc)
   }
 }

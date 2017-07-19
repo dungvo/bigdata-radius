@@ -55,13 +55,13 @@ object ParseAndSaveInf {
         val df = rdd.toDF("host","erro","time","count")
         val dfPivot = df.groupBy("host","time").pivot("erro",bErrorType.value)
                                               .agg(expr("coalesce(first(count),0)")).na.fill(0)
-                                              .cache()
+                                              //.cache()
                                               .withColumnRenamed("module/cpe error","cpe_error")
                                               .withColumnRenamed("disconnect/lost IP","lostip_error")
         //println("Time : " + time + "rdd - id" + rdd.id)
         //dfPivot.show()
         dfPivot.write.mode("append").cassandraFormat("inf_host_error_counting","radius","test").save()
-        dfPivot.unpersist(true)
+        //dfPivot.unpersist(true)
     }
 
 

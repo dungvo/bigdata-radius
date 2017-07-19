@@ -1,5 +1,7 @@
 package streaming_jobs.noc_jobs
 
+import java.sql.Timestamp
+
 import core.streaming.NocParserBroadcast
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
@@ -10,6 +12,7 @@ import org.json4s.jackson.JsonMethods.parse
 import parser.{NocLogLineObject, NocParser}
 import storage.es.ElasticSearchDStreamWriter._
 import org.apache.spark.sql.functions._
+
 import scala.concurrent.duration.FiniteDuration
 import org.apache.spark.sql.cassandra._
 /**
@@ -71,6 +74,12 @@ object ParseAndSaveNoc {
     }
     val sqlLookup = org.apache.spark.sql.functions.udf(lookupErrorLevel)
 
+    /*val currentTimeStamp:(String => java.sql.Timestamp) = (args: String) => {
+      val time = new Timestamp(System.currentTimeMillis())
+      time
+    }
+    val sqlJavaTimeStamp = org.apache.spark.sql.functions.udf(currentTimeStamp)
+*/
     lines.persistToStorageDaily(Predef.Map[String, String]("indexPrefix" -> "noc", "type" -> "parsed"))
 
     lines.foreachRDD{
@@ -136,6 +145,7 @@ object ParseAndSaveNoc {
 
 object BrasErrorTest{
   def main(args: Array[String]): Unit = {
+
     val sparkSession  = SparkSession.builder().appName("test_bras_erro").master("local[1]").getOrCreate()
     import sparkSession.implicits._
     val brasErAndW = sparkSession.sparkContext.parallelize(Seq(("INTERACT-6-UI_CMDLINE_READ_LINE","190","NTN-MP01-2","07:00:30","local7","info"),
@@ -150,5 +160,15 @@ object BrasErrorTest{
       .agg(sum(col("erro_flag")).as("total_err_count"),sum(col("warning_flag")).as("total_warning_count"))
       .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
     brasErrorCount.show()
+    val currentTimeStamp:(String => java.sql.Timestamp) = (args: String) => {
+      val time = new Timestamp(System.currentTimeMillis())
+      time
+    }
+    val sqlJavaTimeStamp = org.apache.spark.sql.functions.udf(currentTimeStamp)
+
+    val brasErrorCount2 = brasErAndWaWithFlag.groupBy(col("devide"))
+      .agg(sum(col("erro_flag")).as("total_err_count"),sum(col("warning_flag")).as("total_warning_count"))
+      .withColumn("time",sqlJavaTimeStamp(col("devide")))
+    brasErrorCount2.show()
   }
 }

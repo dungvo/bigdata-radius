@@ -44,6 +44,7 @@ class ElasticSearchDStreamWriter[T: ClassTag](@transient private val dstream: DS
           //val indexName  = (indexPrefixName + "-" + org.joda.time.DateTime.now().toString("yyyy-MM-dd"))
           //rdd.saveToEs("without_time_parsed2" + "/" + `typeName`)
           rdd.saveToEs((indexPrefixName + "-" + org.joda.time.DateTime.now().toString("yyyy-MM-dd")) + "/" + `typeName`)
+
         }
     }
   }
