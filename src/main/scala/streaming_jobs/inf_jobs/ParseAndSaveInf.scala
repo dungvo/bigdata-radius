@@ -27,6 +27,8 @@ object ParseAndSaveInf {
     import ss.implicits._
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     val lines = kafkaMessages.transform(extractMessageAndValue("message", bParser))
+    //TODO: Save to postgres.
+    // DStreamToPostgres
     //lines.persistToStorageDaily(Predef.Map[String, String]("indexPrefix" -> "inf", "type" -> "rawLog"))
     val filtered = lines.filter(ob => (ob.logType == "module/cpe error" || ob.logType == "disconnect/lost IP" || ob.logType == "power off"))
     val mappedLogType = filtered.map{ob  =>
@@ -59,6 +61,7 @@ object ParseAndSaveInf {
                                               .withColumnRenamed("module/cpe error","cpe_error")
                                               .withColumnRenamed("disconnect/lost IP","lostip_error")
         //println("Time : " + time + "rdd - id" + rdd.id)
+          //TODO : Save To Postgres.
         //dfPivot.show()
         dfPivot.write.mode("append").cassandraFormat("inf_host_error_counting","radius","test").save()
         //dfPivot.unpersist(true)

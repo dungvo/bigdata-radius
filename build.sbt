@@ -7,8 +7,8 @@ val jdbcVersion = "42.0.0"
 val kafkaVersion = "0.10.2.0"
 val kafkaSparkIntergrationVerison = "2.1.0"
 
-val sparkVersion = "2.2.0"
-//val sparkVersion = "2.0.0"
+//val sparkVersion = "2.2.0"
+val sparkVersion = "2.0.0"
 val ficusVersion = "1.1.2"
 val elasticsearchSparkDriverVersion = "6.0.0-alpha-1"
 // Move to es spark drive 6.0.0 @since 31-5-2017

@@ -89,6 +89,7 @@ object ParseAndSaveNoc {
 
         val brasErAndW: DataFrame = rdd.toDF("error","pri","devide","time","facility","severity")
           .select("devide","error").cache()
+        //TODO : Save to postgres. assync mode.
         val brasErMapping = brasErAndW.withColumn("error_level",sqlLookup(col("error")))
 
         val brasErAndWaWithFlag= brasErMapping.withColumn("info_flag",when(col("error_level") === "info",1).otherwise(0))
@@ -99,7 +100,10 @@ object ParseAndSaveNoc {
           .agg(sum(col("info_flag")).as("total_info_count"),sum(col("critical_flag")).as("total_critical_count"))
           .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
         //brasErrorCount.show()
+        //Save to Cassandra
         brasErrorCount.write.mode("append").cassandraFormat("noc_bras_error_counting","radius","test").save()
+        //TODO :Save to postgres
+
         rdd.unpersist(true)
         brasErAndW.unpersist(true)
         brasErAndWaWithFlag.unpersist(true)

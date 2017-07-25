@@ -1,12 +1,12 @@
-package streaming_jobs.test
+package test
 
 import java.util.concurrent.TimeUnit
 
 import core.sources.KafkaDStreamSource
 import core.streaming.{SparkLogLevel, SparkStreamingApplication}
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.streaming.{Duration, StreamingContext}
 import org.apache.spark.streaming.dstream.DStream
+import org.apache.spark.streaming.{Duration, StreamingContext}
 
 import scala.concurrent.duration.FiniteDuration
 

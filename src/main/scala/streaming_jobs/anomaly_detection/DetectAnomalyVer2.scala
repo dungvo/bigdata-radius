@@ -148,7 +148,8 @@ object DetectAnomalyVer2 {
         /* val result3 = result2.join(theshold,"bras_id").select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time")
            .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
            .cache()*/
-        val result3tmp = result2.join(theshold, "bras_id").select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time").cache()
+
+        val result3tmp = result2.join(theshold, Seq("bras_id"), "left_outer").na.fill(0).select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time").cache()
         val result3 = result3tmp.select("*")
           .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
         result3.cache()
