@@ -246,9 +246,10 @@ object ParseAndCountConnLog {
         val brasInfo = rdd.filter(line => line.connect_type != ConnectTypeEnum.Reject.toString)
                             .toDF("time","session_id","connect_type","name","content1","line","card","port","olt","portpon","macadd","vlan","serialonu")
                             .cache()
+        brasInfo.createOrReplaceTempView("bras_info")
         //TODO : Mapping hostname -brastogether.
         // Select name and BrasName where connect type == signin
-        val brasAndHost: DataFrame = brasInfo.select("content1","olt","portpon,concat(olt,'/',portpon) as host_endpoint").where(col("connect_type") === "SignIn")
+        val brasAndHost: DataFrame = ss.sql("SELECT content1 , olt , portpon , CONCAT(olt,'/',portpon) as host_endpoint FROM bras_info").where(col("connect_type") === "SignIn")
                                     //.withColumn("host",sqlLookup(col("name")))
                                     .withColumnRenamed("content1","bras_id")
                                     //.select("bras_id","host").filter($"host".isNotNull && length(trim($"host")) > 0)
