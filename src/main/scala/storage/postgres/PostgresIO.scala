@@ -4,6 +4,7 @@ import java.util.Properties
 import org.apache.log4j.Logger
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import scala.collection.JavaConverters._
+import java.sql._
 
 /**
   * Created by hungdv on 28/04/2017.
@@ -123,6 +124,26 @@ object PostgresIO extends Serializable{
     val jdbcUrl      = s"jdbc:postgresql://${jdbcHostname}:${jdbcPort}/${jdbcDatabase}?user=${jdbcUsername}&password=${jdbcPassword}"
     jdbcUrl
   }
+
+  def pushDowmQuery(query : String,jdbcURL: String): Unit = {
+    try{
+      Class.forName("org.postgresql.Driver").newInstance
+      // Create connection poll !!!!!
+
+      val conn: Connection = DriverManager.getConnection(jdbcURL)
+      val stmt: Statement = conn.createStatement()
+      stmt.execute(query)
+    } catch {
+      case ex: ClassNotFoundException => System.err.println(ex.getMessage)
+      case ex: IllegalAccessException => System.err.println(ex.getMessage)
+      case ex: InstantiationException => System.err.println(ex.getMessage)
+      case ex: SQLException => System.err.println(ex.getMessage)
+      case _ => println("Uncatched exception - ignore!")
+    }
+  }
+
+
+
 
 }
 

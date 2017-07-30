@@ -43,15 +43,17 @@ class ConnJob(config: ConnJobConfig, source: KafkaDStreamSource) extends SparkSt
 
       //
       // Load name and INF host from database -> df
-      val lookupDf  = PostgresIO.selectedByColumn(ss,jdbcUrl,"internet_contract",List("name","host"),pgProperties)
+      //TODO UNCOMMENT BLOCK TO USE LOOKUP CACHE
+      /*val lookupDf  = PostgresIO.selectedByColumn(ss,jdbcUrl,"internet_contract",List("name","host"),pgProperties)
       // convert dataframe to RD
       val lookupRDD    = lookupDf.rdd.map(row => (row(0).toString,row(1).toString))
       // FIXME : Use SparkCommon.convertRDDToMap if this method produce error
-      val lookupMap: mutable.Map[String, String] = SparkCommon.convertRDDToConcurrentHashMap[String,String](lookupRDD)
+      val lookupMap: mutable.Map[String, String] = SparkCommon.convertRDDToConcurrentHashMap[String,String](lookupRDD)*/
       //Broascast cache to worker.
       // WARN: collection.Map mutable.Map --> import collection.{mutable,Map}
       //val bLookUpCache: Broadcast[Map[String, String]] = ss.sparkContext.broadcast[Map[String,String]](lookupMap)
-      val bLookUpCache: Broadcast[collection.Map[String, String]] = MapBroadcast.getInstance(ss.sparkContext,lookupMap)
+      //Look up cache ver 1.1
+      //val bLookUpCache: Broadcast[collection.Map[String, String]] = MapBroadcast.getInstance(ss.sparkContext,lookupMap)
       // Create Source - get value of kafka message and timestamp of msg.
       val input: DStream[String]  = source.createSourceWithTimeStamp(ssc,config.inputTopic)
       // Create Source - get value of kafka message only
@@ -69,7 +71,7 @@ class ConnJob(config: ConnJobConfig, source: KafkaDStreamSource) extends SparkSt
         config.cassandraStorage,
         config.mongoStorage,
         conlogParser,
-        bLookUpCache,
+        //bLookUpCache,
         postgresConfig,
         config.powerBIConfig,
         config.radiusAnomalyDetectionKafkaTopic,

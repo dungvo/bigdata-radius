@@ -123,7 +123,7 @@ object DateAndTimeTest{
     }
 */
 
-    val path: Path = java.nio.file.Paths.get("/home/hungdv/inf_message_debug.log")
+   /* val path: Path = java.nio.file.Paths.get("/home/hungdv/inf_message_debug.log")
     //val path: Path = java.nio.file.Paths.get("/home/hungdv/inf_deregister.log")
     //val path: Path = java.nio.file.Paths.get("/home/hungdv/infmb-2017-06-01_first100k.txt")
     val lines: util.List[String] = Files.readAllLines(path,StandardCharsets.UTF_8)
@@ -138,7 +138,7 @@ object DateAndTimeTest{
         case _ => error = error.+(1)
       }
     }
-    println("count/total/error : " + count + " / " + total + "/" + error)
+    println("count/total/error : " + count + " / " + total + "/" + error)*/
 
   }
 }

@@ -59,7 +59,7 @@ object ParseAndCountConnLog {
                     cassandraConfig: Map[String,Object],
                     mongoDbConfig: Map[String,Object],
                     conLogParser: ConnLogParser,
-                    lookupCache: Broadcast[collection.Map[String,String]],
+                    //lookupCache: Broadcast[collection.Map[String,String]],
                     postgresConfig: Predef.Map[String,String],
                     powerBIConfig: Map[String,String],
                     radiusAnomalyDetectionKafkaTopic: String,
@@ -124,6 +124,7 @@ object ParseAndCountConnLog {
     //val bGson = sc.broadcast[Gson](new Gson())
     // PG properties :
     val jdbcUrl = PostgresIO.getJDBCUrl(postgresConfig)
+    println(jdbcUrl)
     val bJdbcURL = sc.broadcast(jdbcUrl)
     //FIXME :
     // Ad-hoc fixing
@@ -134,10 +135,10 @@ object ParseAndCountConnLog {
     val bSlideDuration  = sc.broadcast(slideDuration)
     val bConLogParser   = sc.broadcast(conLogParser)*/
 
-    val lookupHostName: (String => String) = (arg: String) =>{
-      lookupCache.value.getOrElse(arg,"N/A")
-    }
-    val sqlLookup = org.apache.spark.sql.functions.udf(lookupHostName)
+    //val lookupHostName: (String => String) = (arg: String) =>{
+    //  lookupCache.value.getOrElse(arg,"N/A")
+    //}
+    //val sqlLookup = org.apache.spark.sql.functions.udf(lookupHostName)
 
     val objectConnLogs: DStream[ConnLogLineObject] = lines.transform(extractValue(bConLogParser,bBrasNameLookUp))
 
@@ -148,8 +149,8 @@ object ParseAndCountConnLog {
     // Save to ES :
     import storage.es.ElasticSearchDStreamWriter._
     //var today = org.joda.time.DateTime.now().toString("yyyy-MM-dd")
-
-    objectConnLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius-connlog","type" -> "connlog"))
+    //Save conn log to ES
+    ///objectConnLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius-connlog_new","type" -> "connlog"))
     //objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-" + today),"type" -> "connlog"))
     //objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-test-" + today),"type" -> "connlog"))
 
@@ -200,8 +201,8 @@ object ParseAndCountConnLog {
 
         }
       }*/
-
-    connType.transform(toWouldCountObject)
+      //Save connCounting to ES
+/*    connType.transform(toWouldCountObject)
       .foreachRDD{rdd =>
 
         //Save Conn Counting to Es
@@ -228,7 +229,7 @@ object ParseAndCountConnLog {
         //Mongo Spark Connector 2.0 API :
         //@since 2017-03-22
         //MongoSpark.save(data.write.option("collection","collectionName").mode("overwrite"))
-    }
+    }*/
 
     objectConnLogs.foreachRDD({
       (rdd: RDD[ConnLogLineObject],time_ : Time) =>
@@ -243,26 +244,125 @@ object ParseAndCountConnLog {
         /////////////////////////////////////// BRAS ////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////////////////////////////////
         val brasInfo = rdd.filter(line => line.connect_type != ConnectTypeEnum.Reject.toString)
-                            .toDF("time","session_id","connect_type","name","content1","content2")
-                            .select("name","connect_type","content1").cache()
+                            .toDF("time","session_id","connect_type","name","content1","line","card","port","olt","portpon","macadd","vlan","serialonu")
+                            .cache()
         //TODO : Mapping hostname -brastogether.
         // Select name and BrasName where connect type == signin
-        val brasAndHost: DataFrame = brasInfo.select("name","content1").where(col("connect_type") === "SignIn")
-                                    .withColumn("host",sqlLookup(col("name")))
+        val brasAndHost: DataFrame = brasInfo.select("content1","olt","portpon,concat(olt,'/',portpon) as host_endpoint").where(col("connect_type") === "SignIn")
+                                    //.withColumn("host",sqlLookup(col("name")))
                                     .withColumnRenamed("content1","bras_id")
-                                    .select("bras_id","host").filter($"host".isNotNull && length(trim($"host")) > 0)
+                                    //.select("bras_id","host").filter($"host".isNotNull && length(trim($"host")) > 0)
         //Save to cassandra -- table - keyspace - cluster.
         //println(" BRAS AND HOST")
         //brasAndHost.show()
-        //TODO : HARDCODE !!!!!!
-        brasAndHost.write.mode("append").cassandraFormat("brashostmapping","radius","test").save()
-        //       df.write.mode("append").cassandraFormat("brashostmapping","radius","test").save()
+        //TODO : HARDCODE !!!!!! CASSANDRA
+        //brasAndHost.write.mode("append").cassandraFormat("brashostmapping","radius","test").save()
+        //TODO : Migrate to Postgres.
+        //TODO Code Upsert function
+        // Append only will be cause of conflict.
+        PostgresIO.writeToPostgres(ss, brasAndHost, bJdbcURL.value, "brashostmapping", SaveMode.Overwrite, bPgProperties.value)
+
+
        /* val timeFunc: (AnyRef => String) = (arg: AnyRef) => {
           getCurrentTime()
         }
         val sqlTimeFunc = udf(timeFunc)*/
-        val brasCount = brasInfo.groupBy(col("content1"),col("connect_type"))
-          .agg(count(col("name")).as("count_by_bras"),countDistinct(col("name")).as("count_distinct_by_bras")).cache()
+
+        ///////////////////// COUNT BY PORT //////////////////////////////////////////////////////////////
+        val brasCountByPort = brasInfo.select("name","connect_type","port")
+                                        .groupBy(col("port"),col("connect_type"))
+          .agg(count(col("name")).as("count_by_port"),countDistinct(col("name")).as("count_distinct_by_port"))
+          .cache()
+
+        val brasCountByPortTotalPivot =  brasCountByPort.groupBy("port").pivot("connect_type",bConnectType.value)
+          .agg(expr("coalesce(first(count_by_port),0)"))
+          .withColumnRenamed("SignIn","signin_total_count_by_port")
+          .withColumnRenamed("LogOff","logoff_total_count_by_port")
+
+        val brasCountByPortDistinctPivot = brasCountByPort.groupBy("port").pivot("connect_type",bConnectType.value)
+          .agg(expr("coalesce(first(count_distinct_by_port),0)"))
+          .withColumnRenamed("SignIn","signin_distinct_count_by_port")
+          .withColumnRenamed("LogOff","logoff_distinct_count_by_port")
+
+        val brasCountByPortPivot: DataFrame = brasCountByPortTotalPivot.join(brasCountByPortDistinctPivot,"port")
+          //.withColumn("time",sqlTimeFunc(col("content1")))
+          .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+        brasCountByPortPivot.createOrReplaceTempView("brasCountByPortPivot")
+
+        val result_cb_port = ss.sql("SELECT *, split(port, '/')[0] as bras_id," +
+          " split(port, '/')[1] as line_ol, split(port, '/')[2] as card_ol,split(port, '/')[3] as port_ol FROM brasCountByPortPivot")
+
+        //TODO SAVE TO POSTGRES.
+         PostgresIO.writeToPostgres(ss, result_cb_port, bJdbcURL.value, "bras_count_by_port", SaveMode.Append, bPgProperties.value)
+
+        //////////////////////////// COUNT BY CARD ///////////////////////////////////////////////////////////
+        val brasCountByCard = brasInfo.select("name","connect_type","card")
+          .groupBy(col("card"),col("connect_type"))
+          .agg(count(col("name")).as("count_by_card"),countDistinct(col("name")).as("count_distinct_by_card"))
+          .cache()
+
+        val brasCountByCardTotalPivot =  brasCountByCard.groupBy("card").pivot("connect_type",bConnectType.value)
+          .agg(expr("coalesce(first(count_by_card),0)"))
+          .withColumnRenamed("SignIn","signin_total_count_by_card")
+          .withColumnRenamed("LogOff","logoff_total_count_by_card")
+
+        val brasCountByCardDistinctPivot = brasCountByCard.groupBy("card").pivot("connect_type",bConnectType.value)
+          .agg(expr("coalesce(first(count_distinct_by_card),0)"))
+          .withColumnRenamed("SignIn","signin_distinct_count_by_card")
+          .withColumnRenamed("LogOff","logoff_distinct_count_by_card")
+
+        val brasCountByCardPivot: DataFrame = brasCountByCardTotalPivot.join(brasCountByCardDistinctPivot,"card")
+          //.withColumn("time",sqlTimeFunc(col("content1")))
+          .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+        brasCountByCardPivot.createOrReplaceTempView("brasCountByCardPivot")
+
+        val result_cb_card = ss.sql("SELECT *,split(card, '/')[0] as bras_id, " +
+          "split(card, '/')[1] as line_ol, split(card, '/')[2] as card_ol FROM brasCountByCardPivot")
+
+        //TODO SAVE TO POSTGRES
+        PostgresIO.writeToPostgres(ss, result_cb_card, bJdbcURL.value, "bras_count_by_card", SaveMode.Append, bPgProperties.value)
+
+       ////////////////////////////// LineCard ///////////////////////////////////
+
+
+        val brasCountByLine = brasInfo.select("name","connect_type","line")
+          .groupBy(col("line"),col("connect_type"))
+          .agg(count(col("name")).as("count_by_line"),countDistinct(col("name")).as("count_distinct_by_line"))
+          .cache()
+
+        val brasCountByLineTotalPivot =  brasCountByLine.groupBy("line").pivot("connect_type",bConnectType.value)
+          .agg(expr("coalesce(first(count_by_line),0)"))
+          .withColumnRenamed("SignIn","signin_total_count_by_line")
+          .withColumnRenamed("LogOff","logoff_total_count_by_line")
+
+        val brasCountByLineDistinctPivot = brasCountByLine.groupBy("line").pivot("connect_type",bConnectType.value)
+          .agg(expr("coalesce(first(count_distinct_by_line),0)"))
+          .withColumnRenamed("SignIn","signin_distinct_count_by_line")
+          .withColumnRenamed("LogOff","logoff_distinct_count_by_line")
+
+        val brasCountByLinePivot: DataFrame = brasCountByLineTotalPivot.join(brasCountByLineDistinctPivot,"line")
+          //.withColumn("time",sqlTimeFunc(col("content1")))
+          .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+
+        brasCountByLinePivot.createOrReplaceTempView("brasCountByLinePivot")
+        val result_cb_line = ss.sql("SELECT *,split(line, '/')[0] as bras_id, split(line, '/')[1] as line_ol FROM brasCountByLinePivot ")
+
+        //TODO SAVE TO POSTGRES
+        PostgresIO.writeToPostgres(ss, result_cb_line, bJdbcURL.value, "bras_count_by_line", SaveMode.Append, bPgProperties.value)
+
+        // UNPERSIT
+        brasCountByLine.unpersist()
+        brasCountByCard.unpersist()
+        brasCountByPort.unpersist()
+
+
+        //////////////////////////// Bras ///////////////////////////////////////
+
+        val brasCount = brasInfo.select("name","connect_type","content1")
+          .groupBy(col("content1"),col("connect_type"))
+          .agg(count(col("name")).as("count_by_bras"),countDistinct(col("name")).as("count_distinct_by_bras"))
+          .cache()
+
 
          val brasCountTotalPivot =  brasCount.groupBy("content1").pivot("connect_type",bConnectType.value)
                                                 .agg(expr("coalesce(first(count_by_bras),0)"))
@@ -301,28 +401,6 @@ object ParseAndCountConnLog {
           val signInDistinctTotalCount = head.getAs[Long]("total_signin_distinct")
           val logOffDistinctTotalCount = head.getAs[Long]("total_logoff_distinct")
           val timeBrasCount = head.getAs[java.sql.Timestamp]("time")
-
-          // Consume to many time.
-//          val signInTotalCount = brasSumCounting.head(1).map(row => row.getAs[Long]("total_signin")).toList(0)
-//          val logOffTotalCount = brasSumCounting.head(1).map(row => row.getAs[Long]("total_logoff")).toList(0)
-//          val signInDistinctTotalCount = brasSumCounting.head(1).map(row => row.getAs[Long]("total_signin_distinct")).toList(0)
-//          val logOffDistinctTotalCount = brasSumCounting.head(1).map(row => row.getAs[Long]("total_logoff_distinct")).toList(0)
-//          val timeBrasCount = brasSumCounting.head(1).map(row => row.getAs[java.sql.Timestamp]("time")).toList(0)
-
-
-
-/*          var jsonString =
-            s"""
-               [
-               {
-               "signin_total" :${signInTotalCount},
-               "logoff_total" :${logOffTotalCount},
-               "signin_user" :${signInDistinctTotalCount},
-               "logoff_user" :${logOffDistinctTotalCount},
-               "time" :${timeBrasCount.toString}
-               }
-               ]
-           """*/
 
           val brasSumCountTotal = new BrasSumCount(signin_total= signInTotalCount,
             logOffTotalCount,
@@ -382,13 +460,12 @@ object ParseAndCountConnLog {
             brasCount
           }
 
-
-
           // Make rdd from sequence then save to postgres
           //SAVE TO ES
           //var brasCountIndex = "count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
-          var brasCountType = "bras_count"
-          brasCountObjectRDD.saveToEs("count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) + "/" + brasCountType)
+          // SAVE TO  ES v1.1
+          //var brasCountType = "bras_count"
+          //brasCountObjectRDD.saveToEs("count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) + "/" + brasCountType)
           // Send to Top  50 To PowerBI
           brasCountObjectRDDTop50.foreachPartition{partition =>
             val copy = partition
@@ -429,8 +506,9 @@ object ParseAndCountConnLog {
 
             }
           }
-          // Send All bras count to Kafka
-          brasCountObjectRDD.foreachPartition{partition =>
+          // Send All bras count to Kafka // Consider remove this one.
+          // TODO Replace with directly save data to postgres.
+/*          brasCountObjectRDD.foreachPartition{partition =>
             if(partition.hasNext){
               val producer: KafkaProducer[String,String] = KafkaProducerFactory.getOrCreateProducer(bProducerConfig.value)
               val context = TaskContext.get()
@@ -448,8 +526,11 @@ object ParseAndCountConnLog {
                 producer.send(record,callback)
               }.toList
             }
-          }
+          }*/
           //Send To Kafka - For Anomaly detection
+          //Save Bras count to postgres
+          PostgresIO.writeToPostgres(ss,brasCountPivot,bJdbcURL.value,"bras_count",SaveMode.Append,bPgProperties.value)
+
 
           //brasCountPivot.unpersist()
           // old version - after 1.0
@@ -503,7 +584,7 @@ object ParseAndCountConnLog {
         }
         /////////////////////////////////////// INF ////////////////////////////////////////////////////////////
         ///////////////////////////////////////////////////////////////////////////////////////////////////////
-        val infInfo   =  rdd.toDF("time","session_id","connect_type","name","content1","content2")
+      /*  val infInfo   =  rdd.toDF("time","session_id","connect_type","name","content1","content2")
                             .select("name","connect_type")
         val infMerged =  infInfo.withColumn("host",sqlLookup(col("name")))
         val infCount  =  infMerged.groupBy(col("host"),col("connect_type"))
@@ -520,12 +601,12 @@ object ParseAndCountConnLog {
 
         val infCountPivot = infCountTotalPivot.join(infCountDistinctPivot,"host")
           //.withColumn("time",sqlTimeFunc(col("host")))
-          .withColumn("time",org.apache.spark.sql.functions.current_timestamp()).cache()
+          .withColumn("time",org.apache.spark.sql.functions.current_timestamp()).cache()*/
           //.withColumn("time",org.apache.spark.sql.functions.current_timestamp())
           //.withColumnRenamed("content1","bras_id")
 
         //println(s"========= $time_ =========")
-        if(infCountPivot.count() > 0) {
+        /*if(infCountPivot.count() > 0) {
           //Some day, may be we will need sum all signin logoff by inf.
 
           //Convert DF to RDD[InfCountObject]
@@ -615,11 +696,11 @@ object ParseAndCountConnLog {
         }*/
 
 
-      }
+      }*/
         brasInfo.unpersist()
         brasCount.unpersist()
         brasCountPivot.unpersist()
-        infCountPivot.unpersist()
+        //infCountPivot.unpersist()
 
 
     })
@@ -639,8 +720,10 @@ object ParseAndCountConnLog {
     }.filter(x => x != None).map{ob =>
       //ob.asInstanceOf[ConnLogLineObject]
       val cll = ob.asInstanceOf[ConnLogLineObject]
-      val cllMapped = new ConnLogLineObject(cll.time,cll.session_id,cll.connect_type,cll.name,brasNameLookUp.value.getOrElse(cll.content1,"n/a"),cll.content2)
-      cllMapped
+      /*val cllMapped = new ConnLogLineObject(cll.time,cll.session_id,cll.connect_type,cll.name,brasNameLookUp.value.getOrElse(cll.content1,"n/a"),cll.lineCards,
+        cll.card,cll.port,cll.olt,cll.portPON,cll.macAdd,cll.vlan,cll.serialONU)
+      cllMapped*/
+      cll
     }.filter(x => x.content1 != "n/a")
 
   /*def extractValue  = (parser: Broadcast[ConnLogParser]) => (lines: RDD[String]) =>
@@ -656,6 +739,9 @@ object ParseAndCountConnLog {
     nowFormeted
   }
   def skipEmptyWordCount = (streams : RDD[(String,Int)]) => streams.filter(wordCount => wordCount._2 > 0)
+
+
+
   }
 
 case class StatusCount(connType: String,count: Int, time: Timestamp) extends Serializable{}

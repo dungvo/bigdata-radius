@@ -62,15 +62,5 @@ object OptionParserOnFail {
     //connRDD.saveToEs("es_radius_3/case_class")
     sparkSession.sparkContext.makeRDD(Seq(numbers)).saveToEs("radius/conn")
   }
-  def converObjectToMap(connLog : ConnLogLineObject): Map[String,Object] ={
-    val map = Map[String,Object](
-      "time" -> connLog.time,
-      "session_id" -> connLog.session_id,
-      "connect_type" -> connLog.connect_type,
-      "name" -> connLog.name,
-      "content1" -> connLog.content1,
-      "content2" -> connLog.content2)
-    map
 
-  }
 }
