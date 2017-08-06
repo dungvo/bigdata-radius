@@ -13,7 +13,8 @@ case class PointDetectConfig(
                             streamingCheckPointDir: String,
                             sparkConfig: Map[String,String],
                             sourceKafka: Map[String,String],
-                            powerBIConfig: Map[String,String]
+                            powerBIConfig: Map[String,String],
+                            postgresConfig: Map[String,String]
                             )extends Serializable{
 
 }
@@ -35,7 +36,8 @@ object PointDetectConfig {
       config.as[String]("streamingCheckPointDir"),
       config.as[Predef.Map[String,String]]("sparkConfig"),
       config.as[Predef.Map[String,String]]("sourceKafka"),
-      config.as[Predef.Map[String,String]]("powerBIConfig")
+      config.as[Predef.Map[String,String]]("powerBIConfig"),
+      config.as[Predef.Map[String,String]]("postgresConfig")
 
     )
   }

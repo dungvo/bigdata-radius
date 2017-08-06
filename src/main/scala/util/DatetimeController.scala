@@ -33,7 +33,7 @@ object DatetimeController extends Serializable{
     //val year =  cal.get(Calendar.YEAR)
     //val month = cal.get(Calendar.MONTH)
     //val date = cal.get(Calendar.DATE)
-    val hour = cal.get(Calendar.HOUR)
+    val hour = cal.get(Calendar.HOUR_OF_DAY)
     val minute = cal.get(Calendar.MINUTE)
     val result = (minute.toFloat/100) + hour
     result

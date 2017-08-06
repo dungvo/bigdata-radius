@@ -1,6 +1,6 @@
 package streaming_jobs.conn_jobs
 
-import java.sql.Timestamp
+import java.sql._
 import java.text.SimpleDateFormat
 import java.util
 import java.util.{Calendar, Date, Properties, UUID}
@@ -79,7 +79,7 @@ object ParseAndCountConnLog {
     val bConLogParser   = ParserBoacast.getInstance(sc,conLogParser)
     val bConnectType    = sc.broadcast(Seq("SignIn","LogOff"))
     val bUrlBrasCount: Broadcast[String] = sc.broadcast(powerBIConfig("bras_dataset_url"))
-    val bUrlInfCount: Broadcast[String] = sc.broadcast(powerBIConfig("inf_dataset_url"))
+    //val bUrlInfCount: Broadcast[String] = sc.broadcast(powerBIConfig("inf_dataset_url"))
     val bUrlBrasSumCount: Broadcast[String] = sc.broadcast(powerBIConfig("bras_sumcount_dataset_url"))
     val bProducerConfig: Broadcast[Map[String, String]] = sc.broadcast(producerConfig)
     //val bProducerConfig: Broadcast[Predef.Map[String,Object]] = sc.broadcast(producerConfig)
@@ -250,8 +250,14 @@ object ParseAndCountConnLog {
         //TODO : Mapping hostname -brastogether.
         // Select name and BrasName where connect type == signin
         val brasAndHost: DataFrame = ss.sql("SELECT content1 , olt , portpon , CONCAT(olt,'/',portpon) as host_endpoint FROM bras_info").where(col("connect_type") === "SignIn")
+                                      .filter("host_endpoint != 'n/a/n/a'")
                                     //.withColumn("host",sqlLookup(col("name")))
                                     .withColumnRenamed("content1","bras_id")
+                                    .dropDuplicates("host_endpoint")
+
+        // XXX Debug.
+
+          //.filter(col("host_endpoint") != "n/a/n/a")
                                     //.select("bras_id","host").filter($"host".isNotNull && length(trim($"host")) > 0)
         //Save to cassandra -- table - keyspace - cluster.
         //println(" BRAS AND HOST")
@@ -261,7 +267,44 @@ object ParseAndCountConnLog {
         //TODO : Migrate to Postgres.
         //TODO Code Upsert function
         // Append only will be cause of conflict.
-        PostgresIO.writeToPostgres(ss, brasAndHost, bJdbcURL.value, "brashostmapping", SaveMode.Overwrite, bPgProperties.value)
+
+        try{
+          // @depricate
+          //PostgresIO.writeToPostgres(ss, brasAndHost, bJdbcURL.value, "brashostmapping", SaveMode.Overwrite, bPgProperties.value)
+          brasAndHost.foreachPartition{ batch =>
+            val conn: Connection = DriverManager.getConnection(bJdbcURL.value)
+            val st: PreparedStatement = conn.prepareStatement("INSERT INTO brashostmapping(bras_id,olt,portPON,host_endpoint) " +
+              " VALUES (?,?,?,?)" +
+              " ON CONFLICT (host_endpoint) DO UPDATE  " +
+              " SET bras_id = excluded.bras_id, " +
+              " olt = excluded.olt, " +
+              " portPON = excluded.portPON ;"
+            )
+            // 300 : size of batch : Number of rows you want per batch.
+
+            batch.grouped(300).foreach {session =>
+              session.foreach{x =>
+                st.setString(1,x.getString(0))
+                st.setString(2,x.getString(1))
+                st.setString(3,x.getString(2))
+                st.setString(4,x.getString(3))
+                st.addBatch()
+              }
+              st.executeBatch()
+            }
+            // Can we add try catch here ??? -
+            // TODO WARNING!!! this produce connection leak. /!\
+            conn.close()
+            logger.info(s"Save brashost mapping successfully")
+          }
+
+        }catch{
+          case e: SQLException => System.err.println("SQLException occur when save brashostmapping : " + e.getSQLState + " " + e.getMessage)
+          case e: Exception => System.err.println("UncatchException occur when save brashostmapping : " +  e.getMessage)
+          case _ => println("Ignore !")
+        }
+
+        brasAndHost.unpersist()
 
 
        /* val timeFunc: (AnyRef => String) = (arg: AnyRef) => {
@@ -294,7 +337,16 @@ object ParseAndCountConnLog {
           " split(port, '/')[1] as line_ol, split(port, '/')[2] as card_ol,split(port, '/')[3] as port_ol FROM brasCountByPortPivot")
 
         //TODO SAVE TO POSTGRES.
-         PostgresIO.writeToPostgres(ss, result_cb_port, bJdbcURL.value, "bras_count_by_port", SaveMode.Append, bPgProperties.value)
+
+        try{
+          PostgresIO.writeToPostgres(ss, result_cb_port, bJdbcURL.value, "bras_count_by_port", SaveMode.Append, bPgProperties.value)
+        }catch{
+          case e: SQLException => System.err.println("SQLException occur when save bras_count_by_port : " + e.getSQLState + " " + e.getMessage)
+          case e: Exception => System.err.println("UncatchException occur when save bras_count_by_port : " +  e.getMessage)
+          case _ => println("Ignore !")
+        }
+
+
 
         //////////////////////////// COUNT BY CARD ///////////////////////////////////////////////////////////
         val brasCountByCard = brasInfo.select("name","connect_type","card")
@@ -321,7 +373,15 @@ object ParseAndCountConnLog {
           "split(card, '/')[1] as line_ol, split(card, '/')[2] as card_ol FROM brasCountByCardPivot")
 
         //TODO SAVE TO POSTGRES
-        PostgresIO.writeToPostgres(ss, result_cb_card, bJdbcURL.value, "bras_count_by_card", SaveMode.Append, bPgProperties.value)
+        try{
+          PostgresIO.writeToPostgres(ss, result_cb_card, bJdbcURL.value, "bras_count_by_card", SaveMode.Append, bPgProperties.value)
+        }catch{
+          case e: SQLException => System.err.println("SQLException occur when save bras_count_by_card : " + e.getSQLState + " " + e.getMessage)
+          case e: Exception => System.err.println("UncatchException occur when save bras_count_by_card : " +  e.getMessage)
+          case _ => println("Ignore !")
+        }
+
+
 
        ////////////////////////////// LineCard ///////////////////////////////////
 
@@ -349,7 +409,17 @@ object ParseAndCountConnLog {
         val result_cb_line = ss.sql("SELECT *,split(line, '/')[0] as bras_id, split(line, '/')[1] as line_ol FROM brasCountByLinePivot ")
 
         //TODO SAVE TO POSTGRES
-        PostgresIO.writeToPostgres(ss, result_cb_line, bJdbcURL.value, "bras_count_by_line", SaveMode.Append, bPgProperties.value)
+        try{
+          PostgresIO.writeToPostgres(ss, result_cb_line, bJdbcURL.value, "bras_count_by_line", SaveMode.Append, bPgProperties.value)
+        }catch{
+          case e: SQLException => System.err.println("SQLException occur when save bras_count_by_line : " + e.getSQLState + " " + e.getMessage)
+          case e: Exception => System.err.println("UncatchException occur when save bras_count_by_line : " +  e.getMessage)
+          case _ => println("Ignore !")
+        }
+
+
+
+
 
         // UNPERSIT
         brasCountByLine.unpersist()
@@ -530,7 +600,18 @@ object ParseAndCountConnLog {
           }*/
           //Send To Kafka - For Anomaly detection
           //Save Bras count to postgres
-          PostgresIO.writeToPostgres(ss,brasCountPivot,bJdbcURL.value,"bras_count",SaveMode.Append,bPgProperties.value)
+
+
+
+          try{
+            PostgresIO.writeToPostgres(ss,brasCountPivot,bJdbcURL.value,"bras_count",SaveMode.Append,bPgProperties.value)
+          }catch{
+            case e: SQLException => System.err.println("SQLException occur when save bras_count : " + e.getSQLState + " " + e.getMessage)
+            case e: Exception => System.err.println("UncatchException occur when save bras_count : " +  e.getMessage)
+            case _ => println("Ignore !")
+          }
+
+
 
 
           //brasCountPivot.unpersist()
@@ -772,7 +853,7 @@ object dateTimeTest{
   }
 }
 */
-
+/*
 object SaveToCassTest{
 
   def main(args: Array[String]): Unit = {
@@ -835,3 +916,4 @@ object SaveToCassTest{
 
   }
 }
+*/

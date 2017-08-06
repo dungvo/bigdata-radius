@@ -23,7 +23,7 @@ class ParseNocJob(config: NocParserConfig,source: KafkaDStreamSource) extends Sp
       (ss,ssc) =>
         val input = source.createSource(ssc,config.inputTopic)
         val nocparser = new parser.NocParser
-        ParseAndSaveNoc.parseAndSave(ssc,ss,input,nocparser)
+        ParseAndSaveNoc.parseAndSave(ssc,ss,input,nocparser,config.postgresConfig)
     }
   }
 

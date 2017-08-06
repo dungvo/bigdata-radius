@@ -15,5 +15,6 @@ object DataFrameTest {
     df.createOrReplaceTempView("count")
     val resutl = sparkSession.sql("SELECT *,split(port, '/')[0] as part1, split(port, '/')[1] as part2 FROM count")
     resutl.show()
+
   }
 }

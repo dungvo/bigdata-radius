@@ -1,12 +1,12 @@
 package streaming_jobs.inf_jobs
 
-import java.sql.Timestamp
+import java.sql.{SQLException, Timestamp}
 import java.util.Properties
 
 import core.streaming.InfParserBroadcast
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SaveMode, SparkSession}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.apache.spark.sql.functions.{col, expr}
 import org.apache.spark.streaming.{Duration, StreamingContext, Time}
 import org.apache.spark.streaming.dstream.DStream
@@ -15,6 +15,11 @@ import parser.{INFLogParser, InfLogLineObject}
 import storage.es.ElasticSearchDStreamWriter._
 import org.apache.spark.sql.cassandra._
 import storage.postgres.PostgresIO
+
+import scala.concurrent.duration.{Duration, SECONDS}
+import java.util.concurrent.Executors
+
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 /**
   * Created by hungdv on 19/06/2017.
@@ -31,7 +36,7 @@ object ParseAndSaveInf {
 
     val jdbcUrl = PostgresIO.getJDBCUrl(postgresConfig)
 
-    println(jdbcUrl)
+    //println(jdbcUrl)
     val bJdbcURL = sc.broadcast(jdbcUrl)
     //FIXME :
     // Ad-hoc fixing
@@ -46,19 +51,26 @@ object ParseAndSaveInf {
       val inf_df = rdd.toDF("log_type","host","date","time","module_ol")
 
       inf_df.createOrReplaceTempView("inf_df")
+      //inf_df.show(10)
       import org.apache.spark.sql.functions.unix_timestamp
 
-      val ts = unix_timestamp($"times_stamp_tmp", "MM/dd/yyyy HH:mm:ss").cast("timestamp")
+      val ts = unix_timestamp($"times_stamp_tmp", "yyyy/MM/dd HH:mm:ss").cast("timestamp")
 
       val inf_trf = ss.sql("select log_type,host,module_ol, concat(date ,' ', time) as times_stamp_tmp, concat(host,'/',module_ol) as module FROM inf_df")
                         .withColumn("times_stamp",ts)
                           .drop("times_stamp_tmp")
 
-      PostgresIO.writeToPostgres(ss, inf_trf, bJdbcURL.value, "inf_error", SaveMode.Append, bPgProperties.value)
+      //inf_trf.show(10)
+
+      try{
+        PostgresIO.writeToPostgres(ss, inf_trf, bJdbcURL.value, "inf_error", SaveMode.Append, bPgProperties.value)
+      }catch{
+        case e: SQLException => System.err.println("SQLException occur when save inf_error : " + e.getSQLState + " " + e.getMessage)
+        case e: Exception => System.err.println("UncatchException occur when save inf_error : " +  e.getMessage)
+        case _ => println("Ignore !")
+      }
+
     }
-
-
-
 
     //TODO: Save to postgres.
     // DStreamToPostgres
@@ -66,6 +78,7 @@ object ParseAndSaveInf {
     val filtered = lines.filter(ob => (ob.logType == "module/cpe error" ||
                                         ob.logType == "disconnect/lost IP" ||
                                         ob.logType == "power off"))
+
     val mappedLogType = filtered.map { ob =>
       var logType = ob.logType
       var count = 1
@@ -76,9 +89,10 @@ object ParseAndSaveInf {
       val key = ob.hostName + "/" + ob.module.trim //key = MHG103GAd/1/2/3 [host][module]
       ((key, logType, ob.time.substring(0, 5)), count)
     }
+
     val hostErrorCounting = mappedLogType
       // .reduceByKey(_ + _)
-      .reduceByKeyAndWindow(_ + _, _ - _, Duration(90 * 1000), Duration(30 * 1000))
+      .reduceByKeyAndWindow(_ + _, _ - _, org.apache.spark.streaming.Duration(90 * 1000),org.apache.spark.streaming.Duration(30 * 1000))
       .filter(pair => (pair._2 > 0))
     val ds: DStream[HostErrorCountObject] = hostErrorCounting.map {
       value =>
@@ -91,22 +105,32 @@ object ParseAndSaveInf {
       //(rdd,time: Time) =>
       rdd =>
         val df = rdd.toDF("host_endpoint", "erro", "date_time", "count")
+        //df.show(10)
         val dfPivot = df.groupBy("host_endpoint", "date_time").pivot("erro", bErrorType.value)
           .agg(expr("coalesce(first(count),0)")).na.fill(0)
           //.cache()
           .withColumnRenamed("module/cpe error", "cpe_error")
           .withColumnRenamed("disconnect/lost IP", "lostip_error")
-
+        //dfPivot.show(10)
         dfPivot.createOrReplaceTempView("dfPivot")
         val result_inf_tmp = ss.sql("SELECT *,split(host_endpoint, '/')[0] as host," +
           "split(host_endpoint, '/')[2] as module_ol," +
           "split(host_endpoint, '/')[3] as index_ol FROM dfPivot").cache()
+        //result_inf_tmp.show(10)
         //println("Time : " + time + "rdd - id" + rdd.id)
         //TODO : Save To Postgres.
-        PostgresIO.writeToPostgres(ss, result_inf_tmp, bJdbcURL.value, "result_inf_tmp", SaveMode.Overwrite, bPgProperties.value)
+
+        try{
+          PostgresIO.writeToPostgres(ss, result_inf_tmp, bJdbcURL.value, "result_inf_tmp", SaveMode.Overwrite, bPgProperties.value)
+        }catch{
+          case e: SQLException => System.err.println("SQLException occur when save result_inf_tmp" + e.getSQLState + " " + e.getMessage)
+          case e: Exception => System.err.println("UncatchException occur when save result_inf_tmp: " +  e.getMessage)
+          case _ => println("Ignore !")
+        }
 
         val host_endpoint_id_df = result_inf_tmp.select("host_endpoint")
-        val host_endpoint_ids = host_endpoint_id_df.rdd.map(r => r(0)).collect()
+        host_endpoint_id_df.show()
+        val host_endpoint_ids: Array[Any] = host_endpoint_id_df.rdd.map(r => r(0)).collect()
 
         if (host_endpoint_ids.length > 0) {
           var host_endpoint_IdsString = "("
@@ -115,13 +139,48 @@ object ParseAndSaveInf {
             host_endpoint_IdsString = host_endpoint_IdsString + y
           }
           host_endpoint_IdsString = host_endpoint_IdsString.dropRight(1) + ")"
-          val query = "insert into dwh_inf_index(bras_id,host_endpoint,host,module_ol,index,cpe_error,lostip_error,date_time)" +
+
+
+          val insertINFIndexQuery = "insert into dwh_inf_index(bras_id,host_endpoint,host,module_ol,index,cpe_error,lostip_error,date_time)" +
             " select bh.bras_id,i.host_endpoint,i.host,i.module_ol,i.index_ol,i.cpe_error,i.lostip_error,i.date_time from result_inf_tmp i join " +
             "(SELECT * FROM brashostmapping WHERE host_endpoint in "+host_endpoint_IdsString+ " ) bh on i.host_endpoint = bh.host_endpoint "
-          println(query )
-          PostgresIO.pushDowmQuery("insert into dwh_inf_index(bras_id,host_endpoint,host,module_ol,index,cpe_error,lostip_error,date_time)" +
-            " select bh.bras_id,i.host_endpoint,i.host,i.module_ol,i.index_ol,i.cpe_error,i.lostip_error,i.date_time from result_inf_tmp i join " +
-            "(SELECT * FROM brashostmapping WHERE host_endpoint in "+host_endpoint_IdsString+ " ) bh on i.host_endpoint = bh.host_endpoint ",bJdbcURL.value)
+
+          println(insertINFIndexQuery)
+          PostgresIO.pushDownJDBCQuery(insertINFIndexQuery,bJdbcURL.value)
+          //
+
+          val insertINFModuleQuery = "insert into dwh_inf_module(bras_id,host,module,cpe_error,lostip_error,date_time) " +
+            "select bh.bras_id,i.host,i.module_ol,SUM(i.cpe_error), SUM(i.lostip_error),i.date_time " +
+            "from result_inf_tmp i join (SELECT * FROM brashostmapping WHERE host_endpoint in " + host_endpoint_IdsString +
+            ") bh on i.host_endpoint = bh.host_endpoint GROUP BY i.host,bh.bras_id,i.date_time,i.module_ol ;"
+          println(insertINFModuleQuery)
+
+          val insertINFHostQuery = "insert into dwh_inf_host(bras_id,host,cpe_error,lostip_error,date_time) " +
+              "select bh.bras_id,i.host,SUM(i.cpe_error),SUM(i.lostip_error),i.date_time " +
+              "from result_inf_tmp i join (SELECT * FROM brashostmapping WHERE host_endpoint in " + host_endpoint_IdsString +
+            ") bh on i.host_endpoint = bh.host_endpoint GROUP BY i.host,bh.bras_id,i.date_time ;"
+          println(insertINFHostQuery)
+
+
+
+
+          // Set number of threads via a configuration property
+          val pool = Executors.newFixedThreadPool(3)
+          // create the implicit ExecutionContext based on our thread pool
+          implicit val xc = ExecutionContext.fromExecutorService(pool)
+          // create two async task.
+          try{
+            val insertINFHostTask = PostgresIO.pushDownQueryAsync(insertINFHostQuery,bJdbcURL.value)
+            val insertINFModuleTask = PostgresIO.pushDownQueryAsync(insertINFModuleQuery,bJdbcURL.value)
+            Await.result(Future.sequence(Seq(insertINFHostTask,insertINFModuleTask)), scala.concurrent.duration.Duration(5,SECONDS))
+          }catch{
+            case e: SQLException => System.err.println("SQLException occur when save host-module : " + e.getSQLState + " " + e.getMessage)
+            case e: Exception => System.err.println("UncatchException occur when save host-module : " +  e.getMessage)
+            case _ => println("Ignore !")
+          }
+
+
+          //Await.result(Future.sequence(Seq(taskA,taskB)), Duration(1, MINUTES))
         }
 
         result_inf_tmp.unpersist()
@@ -148,6 +207,9 @@ object ParseAndSaveInf {
     val lines = kafkaMessages.transform(extractMessage("message")
     val objectINFLogs: DStream[InfLogLineObject] = lines.transform(extractValue(bParser))
     objectINFLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "inf-parsed","type" -> "rawLog"))*/
+  }
+  def pushDownQueryAsync(query: String,url: String)(implicit xc: ExecutionContext) = Future {
+    PostgresIO.pushDownJDBCQuery(query,url)
   }
 
   /**
@@ -188,6 +250,7 @@ object ParseAndSaveInf {
     //println("2-"+line.trim().replaceAll("\n ", "") + "-END")
     //println("3-"+line.replace("\n", "").replace("\r", "") + "-END")
   }.filter(x => x != None).map(ob => ob.asInstanceOf[InfLogLineObject])
+    //.filter(x => x.hostName != "n/a")
 
 
   def extractValue = (bParser: Broadcast[INFLogParser]) => (lines: RDD[String]) =>

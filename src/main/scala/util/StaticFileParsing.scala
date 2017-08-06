@@ -53,6 +53,56 @@ class StaticFileParsing()  {
     }
     result
   }
+  def readAndParseNocOpsviewMapping(path: String): mutable.Map[String,String] ={
+    val bufferSource = io.Source.fromFile(path)
+    val result = scala.collection.mutable.Map[String,String]()
+    for (line <- bufferSource.getLines()){
+
+      val cols = line.split(",").map(_.trim)
+      if(cols.length >= 5){
+        val nocName: String = cols(2)
+        val opsviewName = cols(4)
+        if(opsviewName != ""){
+          result += (("\""+opsviewName + "\"")->("\""+ nocName +"\""))
+        }
+      }
+
+    }
+    result
+  }
+  def readAndParseNocKibanaMapping(path: String): mutable.Map[String,String] ={
+    val bufferSource = io.Source.fromFile(path)
+    val result = scala.collection.mutable.Map[String,String]()
+    for (line <- bufferSource.getLines()){
+
+      val cols = line.split(",").map(_.trim)
+      if(cols.length >= 5){
+        val nocName: String = cols(2)
+        val opsviewName = cols(5)
+        if(opsviewName != ""){
+          result += (("\""+opsviewName + "\"")->("\""+ nocName +"\""))
+        }
+      }
+
+    }
+    result
+  }
+
+  def readAndParseNocNocMapping(path: String): mutable.Map[String,String] ={
+    val bufferSource = io.Source.fromFile(path)
+    val result = scala.collection.mutable.Map[String,String]()
+    for (line <- bufferSource.getLines()){
+
+      val cols = line.split(",").map(_.trim)
+      if(cols.length >= 5){
+        val nocName: String = cols(2)
+          result += (("\""+nocName + "\"")->("\""+ nocName +"\""))
+      }
+    }
+    result
+  }
+
+
 }
 object StaticFileTest{
   def main(args: Array[String]): Unit = {
@@ -61,13 +111,28 @@ object StaticFileTest{
     val resutt = reader.readAndParseBrasMapping(path)
     //println(resutt)
     //println(resutt.size)
-    val erroPath = "/home/hungdv/workspace/bigdata-radius/src/main/resources/list_error.csv"
-    val error = reader.readAndParseErrorLevel(erroPath)
+/*    val erroPath = "/home/hungdv/workspace/bigdata-radius/src/main/resources/list_error.csv"
+    val error = reader.readAndParseErrorLevel(erroPath)bras_opsview_noc
     println("----------------------------------------")
     //println(error)
 
     val listbrasPath = "/home/hungdv/workspace/bigdata-radius/src/main/resources/list_bras.csv"
     val bras_Radius_Noc = reader.readAndParseListBras(listbrasPath)
-    println(bras_Radius_Noc)
+    println(bras_Radius_Noc)*/
+
+   /* val listMapping4 = "/home/hungdv/workspace/bigdata-radius/src/main/resources/bras_mapping_4.txt"
+    val bras_opsview_noc = reader.readAndParseNocOpsviewMapping(listMapping4)
+    println(bras_opsview_noc)*/
+
+    val listMapping4 = "/home/hungdv/workspace/bigdata-radius/src/main/resources/bras_mapping_4.txt"
+    val bras_opsview_kibana = reader.readAndParseNocKibanaMapping(listMapping4)
+    println(bras_opsview_kibana)
+
+   /* val listMapping4 = "/home/hungdv/workspace/bigdata-radius/src/main/resources/bras_mapping_4.txt"
+    val bras_noc = reader.readAndParseNocNocMapping(listMapping4)
+    println(bras_noc)*/
+
+
+
   }
 }

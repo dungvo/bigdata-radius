@@ -1,13 +1,13 @@
-package streaming_jobs.noc_jobs
+package streaming_jobs.opsview_jobs
 
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.duration.FiniteDuration
 
 /**
-  * Created by hungdv on 06/07/2017.
+  * Created by hungdv on 31/07/2017.
   */
-case class NocParserConfig(inputTopic: String,
+case class OpsviewConfig(inputTopic: String,
                            streamingBatchDurations: FiniteDuration,
                            streamingCheckPointDir: String,
                            sparkConfig: Map[String,String],
@@ -15,12 +15,13 @@ case class NocParserConfig(inputTopic: String,
                            postgresConfig: Map[String,String]) extends Serializable{
   import com.typesafe.config.{Config, ConfigFactory}
 }
-object NocParserConfig {
+
+object OpsviewConfig {
   import net.ceedubs.ficus.Ficus._
-  def apply() : NocParserConfig = apply(ConfigFactory.load)
-  def apply(infConfig: Config):NocParserConfig = {
-    val config = infConfig.getConfig("nocConfig")
-    new NocParserConfig(
+  def apply() : OpsviewConfig = apply(ConfigFactory.load)
+  def apply(infConfig: Config):OpsviewConfig = {
+    val config = infConfig.getConfig("opsviewConfig")
+    new OpsviewConfig(
       config.as[String]("input.topic"),
       config.as[FiniteDuration]("streamingBatchDuration"),
       config.as[String]("streamingCheckPointDir"),

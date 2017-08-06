@@ -1,11 +1,12 @@
 package streaming_jobs.noc_jobs
 
 import java.sql.Timestamp
+import java.util.Properties
 
 import core.streaming.NocParserBroadcast
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.apache.spark.streaming.{Duration, StreamingContext}
 import org.apache.spark.streaming.dstream.DStream
 import org.json4s.jackson.JsonMethods.parse
@@ -15,17 +16,25 @@ import org.apache.spark.sql.functions._
 
 import scala.concurrent.duration.FiniteDuration
 import org.apache.spark.sql.cassandra._
+import storage.postgres.PostgresIO
 /**
   * Created by hungdv on 06/07/2017.
   */
 object ParseAndSaveNoc {
 
-  def parseAndSave(ssc: StreamingContext,ss: SparkSession,kafkaMessages: DStream[String],nocParser: NocParser): Unit ={
+  def parseAndSave(ssc: StreamingContext,ss: SparkSession,kafkaMessages: DStream[String],nocParser: NocParser,
+                   postgresConfig: Map[String,String]): Unit ={
     import scala.language.implicitConversions
     implicit def finiteDurationToSparkDuration(value: FiniteDuration): org.apache.spark.streaming.Duration =
       new Duration(value.toMillis)
     import ss.implicits._
     val sc = ss.sparkContext
+    val jdbcUrl = PostgresIO.getJDBCUrl(postgresConfig)
+    println(jdbcUrl)
+    val bJdbcURL = sc.broadcast(jdbcUrl)
+    val pgProperties    = new Properties()
+    pgProperties.setProperty("driver","org.postgresql.Driver")
+    val bPgProperties   = sc.broadcast(pgProperties)
     val bParser = NocParserBroadcast.getInstance(sc,nocParser)
     val bErrorLevel = sc.broadcast(Predef.Map("USER-3" -> "info",
       "DAEMON-3-RPD_SCHED_SLIP" -> "info",
@@ -79,45 +88,66 @@ object ParseAndSaveNoc {
       time
     }
     val sqlJavaTimeStamp = org.apache.spark.sql.functions.udf(currentTimeStamp)
-*/
-    lines.persistToStorageDaily(Predef.Map[String, String]("indexPrefix" -> "noc", "type" -> "parsed"))
+    */
+    //Save To ES:
+    //
+    // lines.persistToStorageDaily(Predef.Map[String, String]("indexPrefix" -> "noc", "type" -> "parsed"))
+
+
 
     lines.foreachRDD{
       (rdd: RDD[NocLogLineObject],time: org.apache.spark.streaming.Time) =>
         //filter from RDD -> sev == wraning or error
         rdd.cache()
 
-        val brasErAndW: DataFrame = rdd.toDF("error","pri","devide","time","facility","severity")
-          .select("devide","error").cache()
+        val brasErAndW: DataFrame = rdd.toDF("error_name","pri","bras_id","time","facility","severity")
+          .select("bras_id","error_name").cache()
         //TODO : Save to postgres. assync mode.
-        val brasErMapping = brasErAndW.withColumn("error_level",sqlLookup(col("error")))
+        val brasErMapping = brasErAndW.withColumn("error_level",sqlLookup(col("error_name")))
+          .withColumn("date_time",org.apache.spark.sql.functions.current_timestamp())
+          .cache()
+        //Save kibara error to Postgres.
+        try {
+          PostgresIO.writeToPostgres(ss,brasErMapping,bJdbcURL.value,"dwh_kibana",SaveMode.Append,bPgProperties.value)
+        } catch {
+          case e: Exception => println("Exceotion when write data to pg")
+          case _ => println("Ignore!")
+        }
 
         val brasErAndWaWithFlag= brasErMapping.withColumn("info_flag",when(col("error_level") === "info",1).otherwise(0))
           .withColumn("critical_flag",when(col("error_level") === "critical",1).otherwise(0))
           .cache()
+        brasErMapping.unpersist()
 
-        val brasErrorCount = brasErAndWaWithFlag.groupBy(col("devide"))
+        val brasErrorCount = brasErAndWaWithFlag.groupBy(col("bras_id"),col("date_time"))
           .agg(sum(col("info_flag")).as("total_info_count"),sum(col("critical_flag")).as("total_critical_count"))
-          .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+
         //brasErrorCount.show()
         //Save to Cassandra
-        brasErrorCount.write.mode("append").cassandraFormat("noc_bras_error_counting","radius","test").save()
+        //brasErrorCount.write.mode("append").cassandraFormat("noc_bras_error_counting","radius","test").save()
         //TODO :Save to postgres
-
+        try {
+          PostgresIO.writeToPostgres(ss, brasErrorCount, bJdbcURL.value, "dwh_kibana_agg", SaveMode.Append, bPgProperties.value)
+        } catch {
+          case e: Exception => println("Exceotion when write data to pg")
+          case _ => println("Ignore!")
+        }
+        "Finish batch."
         rdd.unpersist(true)
         brasErAndW.unpersist(true)
         brasErAndWaWithFlag.unpersist(true)
 
           // CALCULATE BASE ON Severity - warning - error
+          // Since versin3 -> calculate by error_name
  /*       val brasErAndW: DataFrame = rdd.filter(line => (line.severity == "warning" || line.severity == "err"))
-          .toDF("error","pri","devide","time","facility","severity")
-          .select("devide","severity").cache()
+          .toDF("error","pri","bras_id","time","facility","severity")
+          .select("bras_id","severity").cache()
 
         val brasErAndWaWithFlag= brasErAndW.withColumn("erro_flag",when(col("severity") === "err",1).otherwise(0))
                                            .withColumn("warning_flag",when(col("severity") === "warning",1).otherwise(0))
                                               .cache()
 
-        val brasErrorCount = brasErAndWaWithFlag.groupBy(col("devide"))
+        val brasErrorCount = brasErAndWaWithFlag.groupBy(col("bras_id"))
           .agg(sum(col("erro_flag")).as("total_err_count"),sum(col("warning_flag")).as("total_warning_count"))
           .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
 
@@ -141,7 +171,7 @@ object ParseAndSaveNoc {
       case _ => None
     }
     parserObject
-  }.filter(x => x != None).map(ob => ob.asInstanceOf[parser.NocLogLineObject])
+  }.filter(x => x != None).map(ob => ob.asInstanceOf[parser.NocLogLineObject]).filter(x => x.devide != "n/a")
 
 }
 

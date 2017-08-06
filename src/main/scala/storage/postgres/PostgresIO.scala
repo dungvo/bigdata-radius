@@ -1,10 +1,14 @@
 package storage.postgres
 
 import java.util.Properties
+
 import org.apache.log4j.Logger
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
+
 import scala.collection.JavaConverters._
 import java.sql._
+
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * Created by hungdv on 28/04/2017.
@@ -111,6 +115,17 @@ object PostgresIO extends Serializable{
   }
 
   /**
+    * Usage : https://gist.github.com/Hungsiro506/23177c26ce82fa31fd58ba03ffe3ee51
+    * @param query
+    * @param url
+    * @param xc
+    * @return
+    */
+  def pushDownQueryAsync(query: String,url: String)(implicit xc: ExecutionContext) = Future {
+    pushDownJDBCQuery(query,url)
+  }
+
+  /**
     * Return JDBC URL for read.
     * @param postgresConfig
     * @return
@@ -125,22 +140,29 @@ object PostgresIO extends Serializable{
     jdbcUrl
   }
 
-  def pushDowmQuery(query : String,jdbcURL: String): Unit = {
+  def pushDownJDBCQuery(query : String, jdbcURL: String): Unit = {
     try{
       Class.forName("org.postgresql.Driver").newInstance
       // Create connection poll !!!!!
-
       val conn: Connection = DriverManager.getConnection(jdbcURL)
       val stmt: Statement = conn.createStatement()
-      stmt.execute(query)
+      try{
+        stmt.execute(query)
+        logger.info(s"Push down JDBC successfully")
+      }catch {
+        case ex: SQLException => System.err.println(ex.getMessage)
+      }finally {
+        conn.close()
+      }
+
     } catch {
       case ex: ClassNotFoundException => System.err.println(ex.getMessage)
       case ex: IllegalAccessException => System.err.println(ex.getMessage)
       case ex: InstantiationException => System.err.println(ex.getMessage)
-      case ex: SQLException => System.err.println(ex.getMessage)
       case _ => println("Uncatched exception - ignore!")
     }
   }
+
 
 
 

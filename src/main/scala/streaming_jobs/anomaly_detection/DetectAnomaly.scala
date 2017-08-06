@@ -98,10 +98,8 @@ object DetectAnomaly {
                row.getAs[String]("bras_id"),
                row.getAs[Int]("signin_total_count"),
                row.getAs[Int]("logoff_total_count"),
-               row.getAs[Double]("rateSL"),
-               row.getAs[Double]("rateLS"),
                row.getAs[java.sql.Timestamp]("time"),
-               0,0,0,0,0
+               0,0,0,0,0,0,0,0,0,0
              )
              outlier
            }

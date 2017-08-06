@@ -1,6 +1,6 @@
 package streaming_jobs.anomaly_detection
 
-import java.sql.Timestamp
+import java.sql.{SQLException, Timestamp}
 
 import core.udafs.{MovingMedian, UpperIQR}
 import org.apache.log4j.Logger
@@ -10,6 +10,7 @@ import org.apache.spark.streaming.{Duration, StreamingContext}
 import org.apache.spark.streaming.dstream.DStream
 import streaming_jobs.anomaly_detection.DetectAnomaly.getClass
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.SaveMode
 
 import scala.concurrent.duration.FiniteDuration
 import scalaj.http.{Http, HttpOptions, HttpResponse}
@@ -19,12 +20,15 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.broadcast.Broadcast
 import org.joda.time.DateTime
 import util.DatetimeController
+
 import scala.concurrent.duration.FiniteDuration
 import java.util
+import java.util.Properties
 
 import com.mongodb.spark.MongoSpark
 import com.mongodb.spark.config.WriteConfig
 import com.mongodb.spark.sql._
+import storage.postgres.PostgresIO
 
 /**
   * Created by hungdv on 25/06/2017.
@@ -38,15 +42,25 @@ object DetectAnomalyVer2 {
              ss: SparkSession,
              lines: DStream[String],
              topics: String,
-             powerBIConfig: Predef.Map[String, String]
+             powerBIConfig: Predef.Map[String, String],
+             postgresConfig: Map[String, String]
             ): Unit = {
     implicit def finiteDurationToSparkDuration(value: FiniteDuration): Duration = new Duration(value.toMillis)
 
     val sc = ssc.sparkContext
     val bPowerBIURL = sc.broadcast(powerBIConfig("radius_anomaly_point_detect_url"))
     val bPowerBIProxyHost = sc.broadcast(powerBIConfig("proxy_host"))
+
+    val jdbcUrl = PostgresIO.getJDBCUrl(postgresConfig)
+    println(jdbcUrl)
+    val bJdbcURL = sc.broadcast(jdbcUrl)
+    val pgProperties = new Properties()
+    pgProperties.setProperty("driver", "org.postgresql.Driver")
+    val bPgProperties = sc.broadcast(pgProperties)
+
     lines.foreachRDD {
       line =>
+        val now = System.currentTimeMillis()
         val context = line.sparkContext
         import ss.implicits._
         val sc = ss.sparkContext
@@ -70,13 +84,46 @@ object DetectAnomalyVer2 {
         val window2 = Window.partitionBy("bras_id")
         //val window2 = Window.partitionBy("bras_id").orderBy($"time")
         val window3 = Window.partitionBy("bras_id").orderBy($"time".desc)
-        val now = System.currentTimeMillis()
-        val timestamp = new org.joda.time.DateTime(now).minusMinutes(30).toString("yyyy-MM-dd HH:mm:ss.SSS")
 
-        val brasCounDFRaw = spark.sql(s"SELECT * FROM brasscount WHERE time > '$timestamp'").cache()
+        //Get last 30 mins of bras_count
+        val timestamp_last30mins = new org.joda.time.DateTime(now).minusMinutes(30).toString("yyyy-MM-dd HH:mm:ss.SSS")
+        //Get last 2 mins of other sources.
+        val point_of_time = new org.joda.time.DateTime(now).minusMinutes(2).toString("yyyy-MM-dd HH:mm:ss.SSS")
+        // Load bras-detail.
+        //val brasDetail  = PostgresIO.pushDownJDBCQuery("","")
+        //brasDetail.cache()
+        // Delect from bras-detail -> bras count.
+
+        // TODO Remove this.
+        //val brasCounDFRaw = spark.sql(s"SELECT * FROM brasscount WHERE time > '$timestamp'").cache()
+        // Read bras detail from last 30 mins
+        // Query phai dat dang alias, khong co dau ; at the end of query.
+
+        val getBrasDetailQuery = s" (SELECT bras.bras_id,bras.time, bras.signin_total_count,bras.logoff_total_count," +
+          s" bras.signin_distinct_count, bras.logoff_distinct_count,kibana.crit_kibana , kibana.info_kibana , opsview.unknown_opsview , opsview.warn_opsview , " +
+          s" opsview.ok_opsview , opsview.crit_opsview , inf.cpe_error , inf.lostip_error  " +
+          s" FROM " +
+          s" (SELECT * FROM bras_count WHERE bras_count.time > '$timestamp_last30mins') AS bras left join " +
+          s" (SELECT bras_id,SUM(total_critical_count) as crit_kibana,SUM(total_info_count) as info_kibana " +
+          s" FROM dwh_kibana_agg WHERE dwh_kibana_agg.date_time > '$point_of_time'  " +
+          s" GROUP BY bras_id) AS kibana on bras.bras_id = kibana.bras_id left join   " +
+          s" (SELECT bras_id,SUM(unknown_opsview) as unknown_opsview, SUM(warn_opsview) as warn_opsview, SUM(ok_opsview) as ok_opsview,SUM(crit_opsview) as crit_opsview " +
+          s" FROM dwh_opsview_status  WHERE dwh_opsview_status.date_time > '$point_of_time' GROUP BY bras_id) AS opsview  on bras.bras_id = opsview.bras_id  left join  " +
+          s" (SELECT bras_id,SUM(cpe_error) as cpe_error, SUM(lostip_error) as lostip_error " +
+          s" FROM dwh_inf_host  WHERE dwh_inf_host.date_time > '$point_of_time' GROUP BY bras_id) AS inf  on bras.bras_id = inf.bras_id ) as temp_table  "
+
+
+        //TODO Debug :
+        println(getBrasDetailQuery)
+        
+        val brasCounDFRaw = PostgresIO.pushDownQuery(ss, bJdbcURL.value, getBrasDetailQuery, bPgProperties.value)
+                //TODO debug:
         //println("COUNTRAW :" + brasCounDFRaw.count())
+        // Rank by time
         val brasCounDFrank = brasCounDFRaw.withColumn("rank_time", rank().over(window3)).cache()
-        val brasCounDF = brasCounDFrank.select("*").where(col("rank_time") <= lit(15)).cache()
+        // Select signin-logoff -> detect outlier
+        val brasCounDF = brasCounDFrank.select("bras_id", "signin_total_count", "logoff_total_count","time","rank_time","signin_distinct_count","logoff_distinct_count").where(col("rank_time") <= lit(15)).cache()
+        // Select  newest data to merge and update (avoid duplicate by select newest data).
         val newestBras = brasCounDFrank.select("*").where(col("rank_time") === lit(1)).drop(col("rank_time")).cache()
         brasCounDFrank.unpersist()
         //println()
@@ -125,7 +172,7 @@ object DetectAnomalyVer2 {
         //result.show(40)
         import org.elasticsearch.spark.sql._
         //result.saveToES("")
-        val result2: DataFrame = result.select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time", "rank_time")
+        val result2: DataFrame = result.select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time", "rank_time","signin_distinct_count","logoff_distinct_count")
           .where($"outlier" > lit(0) && col("rank_time") === lit(1))
           .cache()
         //TODO debug
@@ -141,7 +188,15 @@ object DetectAnomalyVer2 {
         // TODO debug
         //println("Bras String :  ------------------------------------  ---------")
         //println(brasIdsString)
-        val theshold = spark.sql(s"Select * from bras_theshold WHERE bras_id IN $brasIdsString").cache()
+        // TODO migrate to SQL
+        // Get thres hold db for specific bras_ids
+        // Cassandra version
+        //val theshold = spark.sql(s"Select * from bras_theshold WHERE bras_id IN $brasIdsString").cache()
+        // Postgres version:
+        val theshold = PostgresIO.pushDownQuery(ss, bJdbcURL.value,
+          s" ( Select * from threshold WHERE bras_id IN $brasIdsString ) as bhm ",
+          bPgProperties.value).cache()
+
         // TODO debug
         //println("theshold :  ---------------------------------     ------------")
         //theshold.show()
@@ -149,7 +204,7 @@ object DetectAnomalyVer2 {
            .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
            .cache()*/
 
-        val result3tmp = result2.join(theshold, Seq("bras_id"), "left_outer").na.fill(0).select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time").cache()
+        val result3tmp = result2.join(theshold, Seq("bras_id"), "left_outer").na.fill(0).select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time","signin_distinct_count","logoff_distinct_count").cache()
         val result3 = result3tmp.select("*")
           .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
         result3.cache()
@@ -168,7 +223,7 @@ object DetectAnomalyVer2 {
         // Nhung vi front-end lam xau qua nen bo.
         // Sau nay kha nang se khong dung mongo.
         // TODO : Do not remove this comment block!
-      /*  if (result3.count > 0) {
+        /*  if (result3.count > 0) {
           val bras_result3_ids_df = result3.select("bras_id").cache()
           val bras_result3_ids = bras_result3_ids_df.rdd.map(r => r(0)).collect()
           val outlier_with_status = bras_result3_ids_df.withColumn("label", sqlAlwaysOutlier(col("bras_id")))
@@ -319,7 +374,11 @@ object DetectAnomalyVer2 {
           }
           //save to mongo.
         }*/
-        if (result3.count > 0) {
+
+        // TODO VERSION 2 : Thay vi gui toi mongo full list, se tam bo di.
+        // Start date 17-07-2017
+        // Change date 01-08-2017
+        /*if (result3.count > 0) {
           val bras_result3_ids_df = result3.select("bras_id").cache()
           val bras_result3_ids = bras_result3_ids_df.rdd.map(r => r(0)).collect()
           val outlier_with_status = bras_result3_ids_df.withColumn("label", sqlAlwaysOutlier(col("bras_id")))
@@ -427,7 +486,95 @@ object DetectAnomalyVer2 {
 
             brashostMapping.unpersist()
           }
+        }     */
+        //TODO VERSION 3:
+        // Start date 01-08-2017
+        if (result3.count > 0) {
+          val bras_result3_ids_df = result3.select("bras_id").cache()
+          val bras_result3_ids = bras_result3_ids_df.rdd.map(r => r(0)).collect()
+          val outlier_with_status = bras_result3_ids_df.withColumn("label", sqlAlwaysOutlier(col("bras_id")))
+          bras_result3_ids_df.unpersist()
+          val savedToDB_DF = newestBras.join(outlier_with_status, Seq("bras_id"), "left_outer").na.fill("normal").withColumnRenamed("time","date_time")
+          try {
+            PostgresIO.writeToPostgres(ss, savedToDB_DF, bJdbcURL.value, "dwh_radius_bras_detail", SaveMode.Append, bPgProperties.value)
+          } catch {
+            case e: SQLException => println("Error when saving data to pg" + e.getMessage)
+            case e: Exception => println("Uncatched - Error when saving data to pg " + e.getMessage)
+            case _ => println("Dont care :))")
+          }
+          val sendToBI_DF = savedToDB_DF.where("label = 'outlier'").drop("label").drop("signin_distinct_count").drop("logoff_distinct_count")
+          try {
+            val outlierObjectRDD = sendToBI_DF.rdd.map { row =>
+              try {
+                val time = row.getAs[java.sql.Timestamp]("date_time")
+                val outlier = new BrasCoutOutlier(
+                  row.getAs[String]("bras_id"),
+                  row.getAs[Int]("signin_total_count"),
+                  row.getAs[Int]("logoff_total_count"),
+                  time,
+                  DatetimeController.sqlTimeStampToNumberFormat(time),
+                  row.getAs[Long]("cpe_error"),
+                  row.getAs[Long]("lostip_error"),
+                  row.getAs[Long]("crit_kibana"),
+                  row.getAs[Long]("info_kibana"),
+                  row.getAs[Long]("crit_opsview"),
+                  row.getAs[Long]("ok_opsview"),
+                  row.getAs[Long]("warn_opsview"),
+                  row.getAs[Long]("unknown_opsview"),
+                  //TODO - update active user.
+                  0
+                )
+                println("OUTLIER : -----------------------------------------------------")
+                println(outlier)
+                outlier
+              } catch {
+                case e: Exception => {
+                  println("ERROR IN PARSING BLOCK + " + e.printStackTrace());
+                  BrasCoutOutlier("n/a", 0, 0, new Timestamp(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                }
+                //case _: Throwable => println("Throwable ")
+              }
+
+            }
+            println("SEND  TO BI -----------------------------------------------------")
+            import org.elasticsearch.spark._
+            outlierObjectRDD.foreachPartition { partition =>
+              if (partition.hasNext) {
+                val arrayListType = new TypeToken[java.util.ArrayList[BrasCoutOutlier]]() {}.getType
+                val gson = new Gson()
+                val metrics = new util.ArrayList[BrasCoutOutlier]()
+                partition.foreach(bras => metrics.add(bras))
+                val metricsJson = gson.toJson(metrics, arrayListType)
+                println("METRICS : " + metricsJson)
+                val http = Http(bPowerBIURL.value).proxy(bPowerBIProxyHost.value, 80)
+                try {
+                  val result = http.postData(metricsJson)
+                    .header("Content-Type", "application/json")
+                    .header("Charset", "UTF-8")
+                    .option(HttpOptions.readTimeout(15000)).asString
+                  println(s"Send Outlier metrics to PowerBi - Statuscode : ${result.statusLine}.")
+                  logger.warn(s"Send Outlier metrics to PowerBi - Statuscode : ${result.statusLine}.")
+                } catch {
+                  case e: java.net.SocketTimeoutException => logger.error(s"Time out Exception when sending Outlier result to BI")
+                  case _: Throwable => println("Just ignore this shit.")
+                }
+              }
+            }
+          } catch {
+            case e: Throwable => println("ERROR IN SENDING BLOCK !!---------------------------------------------------" + e.printStackTrace())
+          }
+
+        }else{
+          val savedToDB_DF = newestBras.withColumn("label", sqlAlwaysOutlier(col("bras_id"))).withColumnRenamed("time","date_time")
+          try {
+            PostgresIO.writeToPostgres(ss, savedToDB_DF, bJdbcURL.value, "dwh_radius_bras_detail", SaveMode.Append, bPgProperties.value)
+          } catch {
+            case e: SQLException => println("Error when saving data to pg - [else block]" + e.getMessage)
+            case e: Exception => println("Uncatched - Error when saving data to pg - [else block] " + e.getMessage)
+            case _ => println("Dont care :))")
+          }
         }
+
 
         // Unpersist
         brasCounDFRaw.unpersist()
@@ -459,14 +606,17 @@ case class BrasCountObject(
 case class BrasCoutOutlier(bras_id: String,
                            signin_total_count: Int,
                            logoff_total_count: Int,
-                           rateSL: Double,
-                           rateLS: Double,
                            time: Timestamp,
                            timeInNumber: Float,
-                           cpe_error_status: Long,
-                           lostip_error_status: Long,
-                           info_status: Long,
-                           critical_status: Long
+                           cpe_error: Long,
+                           lostip_error: Long,
+                           crit_kibana: Long,
+                           info_kibana: Long,
+                           crit_opsview: Long,
+                           ok_opsview: Long,
+                           warn_opsview: Long,
+                           unknown_opsview: Long,
+                           active_user: Long
                           ) extends Serializable {}
 
 

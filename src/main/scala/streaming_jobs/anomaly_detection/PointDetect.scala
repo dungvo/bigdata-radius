@@ -18,7 +18,9 @@ class PointDetect(config: PointDetectConfig,source: KafkaDStreamSource) extends 
     withSparkStreamingContext{
       (sc,ssc) =>
         val input: DStream[String] = source.createSource(ssc,config.inputTopic)
-        val createDDL: String =
+
+        //Cassandra view - @depricate since version 3.
+  /*      val createDDL: String =
           """CREATE TEMPORARY VIEW brasscount
              USING org.apache.spark.sql.cassandra
              OPTIONS (
@@ -62,7 +64,7 @@ class PointDetect(config: PointDetectConfig,source: KafkaDStreamSource) extends 
         spark.sql(createDLLBrasThreshold)
         spark.sql(createDLL_brashostmapping)
         spark.sql(createDLL_inf_host_error_counting)
-        spark.sql(createDLL_noc_bras_error_counting)
+        spark.sql(createDLL_noc_bras_error_counting)*/
     /*    DetectAnomaly.detect(ssc,
           sc,
           input,
@@ -77,7 +79,8 @@ class PointDetect(config: PointDetectConfig,source: KafkaDStreamSource) extends 
           //config.windowDuration,
           //config.slideDuration,
           config.inputTopic,
-          config.powerBIConfig
+          config.powerBIConfig,
+          config.postgresConfig
         )
     }
   }
