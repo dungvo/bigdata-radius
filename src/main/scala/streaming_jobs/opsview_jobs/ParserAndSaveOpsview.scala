@@ -46,6 +46,8 @@ object ParserAndSaveOpsview {
             .withColumn("date_time",ts)
             .cache()
 
+        println("opsviewdf : " + opsview_df.count())
+
         try{
           PostgresIO.writeToPostgres(ss,opsview_df, bJdbcURL.value,"dwh_opsview",SaveMode.Append,bPgProperties.value)
         }catch{
@@ -53,6 +55,7 @@ object ParserAndSaveOpsview {
           case e: Exception => System.err.println("UncatchException occur when save dwh_opsview : " +  e.getMessage)
           case _ => println("Ignore !")
         }
+
 
 
 

@@ -103,6 +103,24 @@ class StaticFileParsing()  {
   }
 
 
+  def readAndParseNocBras_newMapping(path: String): mutable.Map[String,String] ={
+    val bufferSource = io.Source.fromFile(path)
+    val result = scala.collection.mutable.Map[String,String]()
+    for (line <- bufferSource.getLines()){
+
+      val cols = line.split(",").map(_.trim)
+      if(cols.length >= 5){
+        val nocName: String = cols(2)
+        val brasName = cols(4)
+        if(brasName != ""){
+          result += (("\""+brasName + "\"")->("\""+ nocName +"\""))
+        }
+      }
+    }
+    result
+  }
+
+
 }
 object StaticFileTest{
   def main(args: Array[String]): Unit = {
@@ -124,14 +142,17 @@ object StaticFileTest{
     val bras_opsview_noc = reader.readAndParseNocOpsviewMapping(listMapping4)
     println(bras_opsview_noc)*/
 
-    val listMapping4 = "/home/hungdv/workspace/bigdata-radius/src/main/resources/bras_mapping_4.txt"
+    /*val listMapping4 = "/home/hungdv/workspace/bigdata-radius/src/main/resources/bras_mapping_4.txt"
     val bras_opsview_kibana = reader.readAndParseNocKibanaMapping(listMapping4)
-    println(bras_opsview_kibana)
+    println(bras_opsview_kibana)*/
 
    /* val listMapping4 = "/home/hungdv/workspace/bigdata-radius/src/main/resources/bras_mapping_4.txt"
     val bras_noc = reader.readAndParseNocNocMapping(listMapping4)
     println(bras_noc)*/
 
+    val listMapping4 = "/home/hungdv/workspace/bigdata-radius/src/main/resources/bras_mapping_4.txt"
+    val bras_noc_mapping = reader.readAndParseNocBras_newMapping(listMapping4)
+    println(bras_noc_mapping)
 
 
   }

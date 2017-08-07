@@ -88,7 +88,8 @@ object DetectAnomalyVer2 {
         //Get last 30 mins of bras_count
         val timestamp_last30mins = new org.joda.time.DateTime(now).minusMinutes(30).toString("yyyy-MM-dd HH:mm:ss.SSS")
         //Get last 2 mins of other sources.
-        val point_of_time = new org.joda.time.DateTime(now).minusMinutes(2).toString("yyyy-MM-dd HH:mm:ss.SSS")
+        val timestamp_last2mins  = new org.joda.time.DateTime(now).minusMinutes(2).toString("yyyy-MM-dd HH:mm:ss.SSS")
+        val timestamp_last10mins = new org.joda.time.DateTime(now).minusMinutes(10).toString("yyyy-MM-dd HH:mm:ss.SSS")
         // Load bras-detail.
         //val brasDetail  = PostgresIO.pushDownJDBCQuery("","")
         //brasDetail.cache()
@@ -105,12 +106,12 @@ object DetectAnomalyVer2 {
           s" FROM " +
           s" (SELECT * FROM bras_count WHERE bras_count.time > '$timestamp_last30mins') AS bras left join " +
           s" (SELECT bras_id,SUM(total_critical_count) as crit_kibana,SUM(total_info_count) as info_kibana " +
-          s" FROM dwh_kibana_agg WHERE dwh_kibana_agg.date_time > '$point_of_time'  " +
+          s" FROM dwh_kibana_agg WHERE dwh_kibana_agg.date_time > '$timestamp_last2mins '  " +
           s" GROUP BY bras_id) AS kibana on bras.bras_id = kibana.bras_id left join   " +
           s" (SELECT bras_id,SUM(unknown_opsview) as unknown_opsview, SUM(warn_opsview) as warn_opsview, SUM(ok_opsview) as ok_opsview,SUM(crit_opsview) as crit_opsview " +
-          s" FROM dwh_opsview_status  WHERE dwh_opsview_status.date_time > '$point_of_time' GROUP BY bras_id) AS opsview  on bras.bras_id = opsview.bras_id  left join  " +
+          s" FROM dwh_opsview_status  WHERE dwh_opsview_status.date_time > '$timestamp_last10mins ' GROUP BY bras_id) AS opsview  on bras.bras_id = opsview.bras_id  left join  " +
           s" (SELECT bras_id,SUM(cpe_error) as cpe_error, SUM(lostip_error) as lostip_error " +
-          s" FROM dwh_inf_host  WHERE dwh_inf_host.date_time > '$point_of_time' GROUP BY bras_id) AS inf  on bras.bras_id = inf.bras_id ) as temp_table  "
+          s" FROM dwh_inf_host  WHERE dwh_inf_host.date_time > '$timestamp_last2mins ' GROUP BY bras_id) AS inf  on bras.bras_id = inf.bras_id ) as temp_table  "
 
 
         //TODO Debug :
@@ -529,7 +530,7 @@ object DetectAnomalyVer2 {
                 outlier
               } catch {
                 case e: Exception => {
-                  println("ERROR IN PARSING BLOCK + " + e.printStackTrace());
+                  println("ERROR IN PARSING BLOCK + " + e.printStackTrace() + " " + e.getMessage);
                   BrasCoutOutlier("n/a", 0, 0, new Timestamp(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
                 }
                 //case _: Throwable => println("Throwable ")
