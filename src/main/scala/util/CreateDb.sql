@@ -149,7 +149,8 @@ crit_opsview        int,
 ok_opsview        int,
 warn_opsview        int,
 unknown_opsview        int,
-label  varchar(20)
+label  varchar(20),
+PRIMARY  KEY(date_time,bras_id)
 );
 
 CREATE  TABLE  IF  NOT  EXISTS  inf_error(
@@ -301,3 +302,18 @@ FROM  (SELECT  *  FROM  bras  WHERE  time  >  '$point_of_time')  bras
           s" (SELECT bras_id,SUM(cpe_error) as cpe_error, SUM(lostip_error) as lostip_error " +
           s" FROM dwh_inf_host  WHERE date_time > '$point_of_time' GROUP BY bras_id) inf  on bras.bras_id = inf.bras_id ) as m ) n  ;"
                    
+
+
+
+
+                   BDG-MP-01-01,2017-08-07 16:55:43.948,16,49,12.000000000000000000,30.000000000000000000,null,null,null,null,2,0
+
+
+
+
+DELETE FROM dwh_radius_bras_detail
+WHERE id IN (SELECT id
+              FROM (SELECT id,
+                             ROW_NUMBER() OVER (partition BY column1, column2, column3 ORDER BY id) AS rnum
+                     FROM tablename) t
+              WHERE t.rnum > 1);

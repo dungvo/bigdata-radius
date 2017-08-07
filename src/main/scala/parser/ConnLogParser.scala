@@ -18,7 +18,7 @@ class ConnLogParser extends AbtractLogParser {
   private val conRegexPattern: Regex          = AtomicPattern.conRegexPattern
   private val signInLogOffPattern: Regex      = AtomicPattern.signInLogOffRegexPattern
   private val rejectPattern: Regex            = AtomicPattern.rejectRegexPattern
-  private val brasLookUp = Predef.Map("HCM-MP03-2-NEW" -> "HCM-MP-03-02",
+  private val  brasLookUp = Predef.Map("HCM-MP03-2-NEW" -> "HCM-MP-03-02",
     "VPC-MP01" -> "VPC-MP-01-01", "HN-MP02-8" -> "HNI-MP-02-08", "LGI-MP01-2" -> "LGI-MP-01-02", "DTP-MP01-2" -> "DTP-MP-01-02",
     "TQG-MP01-1" -> "TQG-MP-01-01", "HDG-MP01-3" -> "HDG-MP-01-03", "VLG-MP01-1" -> "VLG-MP-01-01", "AGG-MP01-1" -> "AGG-MP-01-01",
     "HN-MP01-1" -> "HNI-MP-01-01", "HN-MP05-1" -> "HNI-MP-05-01", "DNI-MP01-2-NEW" -> "DNI-MP-01-02", "VTU-MP01-1-NEW" -> "VTU-MP-01-01",
@@ -79,10 +79,10 @@ class ConnLogParser extends AbtractLogParser {
   def  extractValues_newFormat(line: String): Option[AbtractLogLine]={
     line match {
       case signInLogOffPattern(c_time2,c_ssThreadId,c_contask,c_conName,c_nASName,c_undefinedText)
-      =>  Option(ConnLogLineObject.create(c_time2,c_ssThreadId,c_contask.substring(11,17),brasLookUp.getOrElse(c_conName,"n/a"),c_nASName,c_undefinedText))
+      =>  Option(ConnLogLineObject.create(c_time2,c_ssThreadId,c_contask.substring(11,17),c_conName,brasLookUp.getOrElse(c_nASName,"n/a"),c_undefinedText))
 
       case rejectPattern(c_time2,c_ssThreadId,c_contask,c_conName,c_rejectCause,c_rejectResultDetail)
-      =>  Option(ConnLogLineObject.create(c_time2,c_ssThreadId,c_contask.substring(11,17),brasLookUp.getOrElse(c_conName,"n/a"),c_rejectCause,c_rejectResultDetail))
+      =>  Option(ConnLogLineObject.create(c_time2,c_ssThreadId,c_contask.substring(11,17),c_conName,c_rejectCause,c_rejectResultDetail))
       //Fixme!!!! Error here !!!!!
       case _ => None
       //case _ => Some(ErroLogLine(line))

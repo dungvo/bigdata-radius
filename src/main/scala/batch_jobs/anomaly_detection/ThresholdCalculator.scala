@@ -61,13 +61,13 @@ object ThresholdCalculator {
     //val q95TH = new core.udafs.QnTH(95)
     //Read from cassandra @depricate from verson 3
     //val brasCountLastWeek = spark.sql(s"SELECT * FROM brasscount WHERE time > '$timestamp'")
-    val jdbcQuery = s"SELECT * FROM bras_count WHERE time > '$timestamp'"
-    val brasCountLastWeek = PostgresIO.pushDownQuery(sparkSession,bJdbcURL.value,"",bPgProperties.value)
+    val jdbcQuery = s" (SELECT * FROM bras_count WHERE time > '$timestamp') as T "
+    val brasCountLastWeek = PostgresIO.pushDownQuery(sparkSession,bJdbcURL.value,jdbcQuery,bPgProperties.value)
     logger.warn(s"Read brascount from $timestamp to $now")
 
     val brasThresHold = brasCountLastWeek.withColumn("threshold_signin",q95TH(col("signin_total_count")).over(window2))
                                          .withColumn("threshold_logoff",q95TH(col("logoff_total_count")).over(window2))
-                                         .select("bras_id","threshold_signin","threshold_logoff")
+                                         .select("bras_id","threshold_signin","threshold_logoff").distinct()
     logger.warn(s"Calculate brascount threshold")
     try {
       PostgresIO.writeToPostgres(sparkSession, brasThresHold, bJdbcURL.value, "threshold", SaveMode.Overwrite, bPgProperties.value)

@@ -157,7 +157,8 @@ object ParseAndCountConnLog {
     //Sorry, it was 7PM, i was too lazy to code. so i did too much hard code here :)).
     val connType = objectConnLogs
       .map(conlog => (conlog.connect_type,1))
-      .reduceByKeyAndWindow( _ + _ , _ -_ , bWindowDuration.value,bSlideDuration.value)
+      .reduceByKeyAndWindow((a:Int,b:Int)=>a+b,bWindowDuration.value,bSlideDuration.value)
+      //.reduceByKeyAndWindow( _ + _ , _ -_ , bWindowDuration.value,bSlideDuration.value)
       .transform(skipEmptyWordCount)  //Uncomment this line to remove empty wordcoutn such as : SignInt : Count 0
 
     /*/*
@@ -418,14 +419,10 @@ object ParseAndCountConnLog {
         }
 
 
-
-
-
         // UNPERSIT
         brasCountByLine.unpersist()
         brasCountByCard.unpersist()
         brasCountByPort.unpersist()
-
 
         //////////////////////////// Bras ///////////////////////////////////////
 
@@ -433,7 +430,6 @@ object ParseAndCountConnLog {
           .groupBy(col("content1"),col("connect_type"))
           .agg(count(col("name")).as("count_by_bras"),countDistinct(col("name")).as("count_distinct_by_bras"))
           .cache()
-
 
          val brasCountTotalPivot =  brasCount.groupBy("content1").pivot("connect_type",bConnectType.value)
                                                 .agg(expr("coalesce(first(count_by_bras),0)"))
@@ -793,7 +789,8 @@ object ParseAndCountConnLog {
   //FIXME !!!
   def extractValue  = (parser: Broadcast[ConnLogParser],brasNameLookUp: Broadcast[Predef.Map[String,String]]) => (lines: RDD[String]) =>
     lines.map{ line =>
-      val parsedObject = parser.value.extractValues(line).getOrElse(None)
+      val parsedObject = parser.value.extractValues_newFormat(line).getOrElse(None)
+      //val parsedObject = parser.value.extractValues(line).getOrElse(None)
       parsedObject match{
         case Some(x) => x.asInstanceOf[ConnLogLineObject]
         case _ => None

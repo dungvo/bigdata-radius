@@ -114,23 +114,18 @@ object DetectAnomalyVer2 {
           s" FROM dwh_inf_host  WHERE dwh_inf_host.date_time > '$timestamp_last2mins ' GROUP BY bras_id) AS inf  on bras.bras_id = inf.bras_id ) as temp_table  "
 
 
-        //TODO Debug :
+
         println(getBrasDetailQuery)
-        
+        //Push down to db. server side join.
         val brasCounDFRaw = PostgresIO.pushDownQuery(ss, bJdbcURL.value, getBrasDetailQuery, bPgProperties.value)
-                //TODO debug:
-        //println("COUNTRAW :" + brasCounDFRaw.count())
-        // Rank by time
+                // Rank by time
         val brasCounDFrank = brasCounDFRaw.withColumn("rank_time", rank().over(window3)).cache()
         // Select signin-logoff -> detect outlier
-        val brasCounDF = brasCounDFrank.select("bras_id", "signin_total_count", "logoff_total_count","time","rank_time","signin_distinct_count","logoff_distinct_count").where(col("rank_time") <= lit(15)).cache()
+        val brasCounDF = brasCounDFrank.select("bras_id", "signin_total_count", "logoff_total_count","time","rank_time",
+          "signin_distinct_count","logoff_distinct_count").where(col("rank_time") <= lit(15)).cache()
         // Select  newest data to merge and update (avoid duplicate by select newest data).
-        val newestBras = brasCounDFrank.select("*").where(col("rank_time") === lit(1)).drop(col("rank_time")).cache()
+        val newestBras = brasCounDFrank.where(col("rank_time") === lit(1)).drop(col("rank_time")).cache()
         brasCounDFrank.unpersist()
-        //println()
-        //println("COUNT :" + brasCounDF.count())
-        //println("TIME :" + timestamp)
-
         val rated = brasCounDF.withColumn("rateSL", ($"signin_total_count") / ($"logoff_total_count" + 1))
           .withColumn("rateLS", ($"logoff_total_count") / ($"signin_total_count" + 1))
 
@@ -163,32 +158,25 @@ object DetectAnomalyVer2 {
 
         val result: DataFrame = iqr.withColumn("outlier", when(($"rateSL" > $"upper_iqr_SL" && $"upper_iqr_SL" > lit(0))
           || ($"rateLS" > $"upper_iqr_LS" && $"upper_iqr_LS" > lit(0)), 1).otherwise(0))
+
         //.withColumn("time_ranking", rank().over(window3))
         //.select("*")
         //.where($"bras_id" === "BLC-MP01-2" || $"bras_id" === "BLC-MP01-2")
         /*val result = iqr.withColumn("outlier",when(($"detrendSL" > $"upper_iqr_SL" )
                                || ($"detrendLS" > $"upper_iqr_LS" ),1).otherwise(0))*/
         //println("RESULT-------------------------------------------------------")
-        // TODO debug
-        //result.show(40)
         import org.elasticsearch.spark.sql._
         //result.saveToES("")
         val result2: DataFrame = result.select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time", "rank_time","signin_distinct_count","logoff_distinct_count")
           .where($"outlier" > lit(0) && col("rank_time") === lit(1))
           .cache()
-        //TODO debug
-        //println("RESULT 2 :  --------------------------------------------------")
-        //result2.show()
         val brasids = result2.select("bras_id").rdd.map(r => r(0)).collect()
         var brasIdsString = "("
         brasids.foreach { x =>
           val y = "'" + x + "',"
           brasIdsString = brasIdsString + y
         }
-        brasIdsString = brasIdsString.dropRight(1) + ")"
-        // TODO debug
-        //println("Bras String :  ------------------------------------  ---------")
-        //println(brasIdsString)
+        brasIdsString = brasIdsString.dropRight(1) + " )"
         // TODO migrate to SQL
         // Get thres hold db for specific bras_ids
         // Cassandra version
@@ -198,19 +186,16 @@ object DetectAnomalyVer2 {
           s" ( Select * from threshold WHERE bras_id IN $brasIdsString ) as bhm ",
           bPgProperties.value).cache()
 
-        // TODO debug
-        //println("theshold :  ---------------------------------     ------------")
-        //theshold.show()
         /* val result3 = result2.join(theshold,"bras_id").select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time")
            .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
            .cache()*/
 
-        val result3tmp = result2.join(theshold, Seq("bras_id"), "left_outer").na.fill(0).select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time","signin_distinct_count","logoff_distinct_count").cache()
-        val result3 = result3tmp.select("*")
-          .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
+        val result3tmp = result2.join(theshold, Seq("bras_id"), "left_outer").na.fill(0)
+          .select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time","signin_distinct_count","logoff_distinct_count").cache()
+        val result3 = result3tmp.where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
         result3.cache()
         // TODO Debug
-        println("result3 :----- ----")
+        println("result3 :----- ----" + result3.count())
         result3.show()
         //.where($"outlier" > lit(0) && col("time_ranking") === lit(1))
         println("RESULT FILTERD : Result 3 ------------------------------------")
@@ -497,13 +482,17 @@ object DetectAnomalyVer2 {
           bras_result3_ids_df.unpersist()
           val savedToDB_DF = newestBras.join(outlier_with_status, Seq("bras_id"), "left_outer").na.fill("normal").withColumnRenamed("time","date_time")
           try {
+            // TODO change to upsert.
             PostgresIO.writeToPostgres(ss, savedToDB_DF, bJdbcURL.value, "dwh_radius_bras_detail", SaveMode.Append, bPgProperties.value)
           } catch {
             case e: SQLException => println("Error when saving data to pg" + e.getMessage)
             case e: Exception => println("Uncatched - Error when saving data to pg " + e.getMessage)
             case _ => println("Dont care :))")
           }
+
           val sendToBI_DF = savedToDB_DF.where("label = 'outlier'").drop("label").drop("signin_distinct_count").drop("logoff_distinct_count")
+
+          sendToBI_DF.show(10)
           try {
             val outlierObjectRDD = sendToBI_DF.rdd.map { row =>
               try {
@@ -530,13 +519,13 @@ object DetectAnomalyVer2 {
                 outlier
               } catch {
                 case e: Exception => {
-                  println("ERROR IN PARSING BLOCK + " + e.printStackTrace() + " " + e.getMessage);
+                  println("ERROR IN PARSING BLOCK + " + e.printStackTrace() + " " + e.getMessage +  " " + row.toString());
                   BrasCoutOutlier("n/a", 0, 0, new Timestamp(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
                 }
                 //case _: Throwable => println("Throwable ")
               }
 
-            }
+            }.filter(x => x.bras_id != "n/a")
             println("SEND  TO BI -----------------------------------------------------")
             import org.elasticsearch.spark._
             outlierObjectRDD.foreachPartition { partition =>
