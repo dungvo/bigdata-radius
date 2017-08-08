@@ -1,6 +1,6 @@
 package streaming_jobs.anomaly_detection
 
-import java.sql.{SQLException, Timestamp}
+import java.sql.{Connection, DriverManager, PreparedStatement, SQLException, Timestamp}
 
 import core.udafs.{MovingMedian, UpperIQR}
 import org.apache.log4j.Logger
@@ -89,7 +89,7 @@ object DetectAnomalyVer2 {
         val timestamp_last30mins = new org.joda.time.DateTime(now).minusMinutes(30).toString("yyyy-MM-dd HH:mm:ss.SSS")
         //Get last 2 mins of other sources.
         val timestamp_last2mins  = new org.joda.time.DateTime(now).minusMinutes(2).toString("yyyy-MM-dd HH:mm:ss.SSS")
-        val timestamp_last10mins = new org.joda.time.DateTime(now).minusMinutes(10).toString("yyyy-MM-dd HH:mm:ss.SSS")
+        val timestamp_last15mins = new org.joda.time.DateTime(now).minusMinutes(15).toString("yyyy-MM-dd HH:mm:ss.SSS")
         // Load bras-detail.
         //val brasDetail  = PostgresIO.pushDownJDBCQuery("","")
         //brasDetail.cache()
@@ -109,7 +109,7 @@ object DetectAnomalyVer2 {
           s" FROM dwh_kibana_agg WHERE dwh_kibana_agg.date_time > '$timestamp_last2mins '  " +
           s" GROUP BY bras_id) AS kibana on bras.bras_id = kibana.bras_id left join   " +
           s" (SELECT bras_id,SUM(unknown_opsview) as unknown_opsview, SUM(warn_opsview) as warn_opsview, SUM(ok_opsview) as ok_opsview,SUM(crit_opsview) as crit_opsview " +
-          s" FROM dwh_opsview_status  WHERE dwh_opsview_status.date_time > '$timestamp_last10mins ' GROUP BY bras_id) AS opsview  on bras.bras_id = opsview.bras_id  left join  " +
+          s" FROM dwh_opsview_status  WHERE dwh_opsview_status.date_time > '$timestamp_last15mins ' GROUP BY bras_id) AS opsview  on bras.bras_id = opsview.bras_id  left join  " +
           s" (SELECT bras_id,SUM(cpe_error) as cpe_error, SUM(lostip_error) as lostip_error " +
           s" FROM dwh_inf_host  WHERE dwh_inf_host.date_time > '$timestamp_last2mins ' GROUP BY bras_id) AS inf  on bras.bras_id = inf.bras_id ) as temp_table  "
 
@@ -182,8 +182,10 @@ object DetectAnomalyVer2 {
         // Cassandra version
         //val theshold = spark.sql(s"Select * from bras_theshold WHERE bras_id IN $brasIdsString").cache()
         // Postgres version:
-        val theshold = PostgresIO.pushDownQuery(ss, bJdbcURL.value,
-          s" ( Select * from threshold WHERE bras_id IN $brasIdsString ) as bhm ",
+        val thesholdQuery = s"( Select * from threshold WHERE bras_id IN $brasIdsString ) as bhm "
+        println("thresholdQuery " + thesholdQuery)
+
+        val theshold = PostgresIO.pushDownQuery(ss, bJdbcURL.value,thesholdQuery,
           bPgProperties.value).cache()
 
         /* val result3 = result2.join(theshold,"bras_id").select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time")
@@ -196,7 +198,7 @@ object DetectAnomalyVer2 {
         result3.cache()
         // TODO Debug
         println("result3 :----- ----" + result3.count())
-        result3.show()
+        //result3.show()
         //.where($"outlier" > lit(0) && col("time_ranking") === lit(1))
         println("RESULT FILTERD : Result 3 ------------------------------------")
 
@@ -481,18 +483,23 @@ object DetectAnomalyVer2 {
           val outlier_with_status = bras_result3_ids_df.withColumn("label", sqlAlwaysOutlier(col("bras_id")))
           bras_result3_ids_df.unpersist()
           val savedToDB_DF = newestBras.join(outlier_with_status, Seq("bras_id"), "left_outer").na.fill("normal").withColumnRenamed("time","date_time")
+          println("SAVE TO DB")
+          savedToDB_DF.show(10)
           try {
             // TODO change to upsert.
-            PostgresIO.writeToPostgres(ss, savedToDB_DF, bJdbcURL.value, "dwh_radius_bras_detail", SaveMode.Append, bPgProperties.value)
+            //PostgresIO.writeToPostgres(ss, savedToDB_DF, bJdbcURL.value, "dwh_radius_bras_detail", SaveMode.Append, bPgProperties.value)
+            //Upsert to postgres
+            upsertDetailToPostgres(ss,savedToDB_DF,bJdbcURL.value)
+            //Upsert
+
           } catch {
-            case e: SQLException => println("Error when saving data to pg" + e.getMessage)
-            case e: Exception => println("Uncatched - Error when saving data to pg " + e.getMessage)
+            case e: SQLException => println("Error when saving data to pg" + e.getMessage + e.getMessage + e.getStackTrace)
+            case e: Exception => println("Uncatched - Error when saving data to pg " + e.getMessage + e.getStackTrace)
             case _ => println("Dont care :))")
           }
 
           val sendToBI_DF = savedToDB_DF.where("label = 'outlier'").drop("label").drop("signin_distinct_count").drop("logoff_distinct_count")
 
-          sendToBI_DF.show(10)
           try {
             val outlierObjectRDD = sendToBI_DF.rdd.map { row =>
               try {
@@ -555,12 +562,17 @@ object DetectAnomalyVer2 {
           }
 
         }else{
-          val savedToDB_DF = newestBras.withColumn("label", sqlAlwaysOutlier(col("bras_id"))).withColumnRenamed("time","date_time")
+          val savedToDB_DF = newestBras.withColumn("label", sqlAlwaysNormal(col("bras_id"))).withColumnRenamed("time","date_time")
+          println("SAVE TO DB")
+          savedToDB_DF.show(10)
           try {
-            PostgresIO.writeToPostgres(ss, savedToDB_DF, bJdbcURL.value, "dwh_radius_bras_detail", SaveMode.Append, bPgProperties.value)
+            //Upsert to postgres :
+            upsertDetailToPostgres(ss,savedToDB_DF,bJdbcURL.value)
+            // Dupplicate orccur
+            //PostgresIO.writeToPostgres(ss, savedToDB_DF, bJdbcURL.value, "dwh_radius_bras_detail", SaveMode.Append, bPgProperties.value)
           } catch {
-            case e: SQLException => println("Error when saving data to pg - [else block]" + e.getMessage)
-            case e: Exception => println("Uncatched - Error when saving data to pg - [else block] " + e.getMessage)
+            case e: SQLException => println("Error when saving data to pg - [else block]" + e.getMessage  + e.getStackTrace )
+            case e: Exception => println("Uncatched - Error when saving data to pg - [else block] " + e.getMessage  + e.getStackTrace )
             case _ => println("Dont care :))")
           }
         }
@@ -579,6 +591,82 @@ object DetectAnomalyVer2 {
         println("Execution time for batch : " + timeExecute + " s ")
       //ES -Mongo -Cassandra
       //outlierObjectRDD.saveToEs("radius_oulier_detect")
+    }
+  }
+
+  /**
+    * Upsert bras detail table to Postgres
+    * Handle with duplicate.
+    * So much hard code here.
+    * @param ss
+    * @param savedToDB_DF
+    * @param jdbcURL
+    */
+  def upsertDetailToPostgres(ss: SparkSession,savedToDB_DF: DataFrame,jdbcURL: String) = {
+    import ss.implicits._
+    savedToDB_DF
+      //.na.fill(0)
+      .repartition(6)
+      .foreachPartition{batch =>
+      val conn: Connection = DriverManager.getConnection(jdbcURL)
+      val st: PreparedStatement = conn.prepareStatement("INSERT INTO dwh_radius_bras_detail(bras_id,date_time,active_user," +
+        "signin_total_count,logoff_total_count,signin_distinct_count,logoff_distinct_count,crit_kibana,info_kibana," +
+        "unknown_opsview,warn_opsview,ok_opsview,crit_opsview,cpe_error,lostip_error,label) " +
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)" +
+        " ON CONFLICT (bras_id,date_time) DO UPDATE  " +
+        " SET signin_total_count = excluded.signin_total_count, " +
+        " logoff_total_count = excluded.logoff_total_count, " +
+        " signin_distinct_count = excluded.signin_distinct_count, " +
+        " logoff_distinct_count = excluded.logoff_distinct_count, " +
+        " cpe_error = excluded.cpe_error, " +
+        " lostip_error = excluded.lostip_error, " +
+        " crit_kibana = excluded.crit_kibana, " +
+        " info_kibana = excluded.info_kibana, " +
+        " crit_opsview = excluded.crit_opsview, " +
+        " ok_opsview = excluded.ok_opsview, " +
+        " warn_opsview = excluded.warn_opsview, " +
+        " unknown_opsview = excluded.unknown_opsview, " +
+        " label = excluded.label ;"
+      )
+      batch.grouped(100).foreach { session =>
+
+        session.foreach{ x =>
+          st.setString(1,x.getString(0))
+          st.setTimestamp(2,x.getTimestamp(1))
+          st.setInt(3,0)
+          st.setInt(4,x.getAs[Int]("signin_total_count"))
+   /*       st.setInt(4,x.getInt(3))
+          st.setInt(5,x.getInt(4))
+          st.setInt(6,x.getInt(5))
+          st.setInt(7,x.getInt(6))
+          st.setInt(8,x.getInt(7))
+          st.setInt(9,x.getInt(8))
+          st.setInt(10,x.getInt(9))
+          st.setInt(11,x.getInt(10))
+          st.setInt(12,x.getInt(11))
+          st.setInt(13,x.getInt(12))
+          st.setInt(14,x.getInt(13))
+          st.setInt(15,x.getInt(14))
+          st.setString(16,x.getString(15))*/
+          st.setInt(5,x.getAs[Int]("logoff_total_count"))
+          st.setInt(6,x.getAs[Int]("signin_distinct_count"))
+          st.setInt(7,x.getAs[Int]("logoff_distinct_count"))
+          st.setInt(8,x.getAs[Long]("cpe_error").toInt)
+          st.setInt(9,x.getAs[Long]("lostip_error").toInt)
+          st.setInt(10,x.getAs[Long]("crit_kibana").toInt)
+          st.setInt(11,x.getAs[Long]("info_kibana").toInt)
+          st.setInt(12,x.getAs[Long]("crit_opsview").toInt)
+          st.setInt(13,x.getAs[Long]("ok_opsview").toInt)
+          st.setInt(14,x.getAs[Long]("warn_opsview").toInt)
+          st.setInt(15,x.getAs[Long]("unknown_opsview").toInt)
+          st.setString(16,x.getAs[String]("label"))
+
+          st.addBatch()
+        }
+        st.executeBatch()
+      }
+      conn.close()
+      logger.info(s"Save batch ${batch.toString()} successfully")
     }
   }
 

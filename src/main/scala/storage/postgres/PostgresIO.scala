@@ -66,6 +66,7 @@ object PostgresIO extends Serializable{
     */
   def pushDownQuery(sparkSession: SparkSession,jdbcUrl: String,jdbcQuery: String,connectionProperties: Properties)
   : DataFrame={
+
     val df = sparkSession.read.jdbc(jdbcUrl,jdbcQuery,connectionProperties)
     df
   }
