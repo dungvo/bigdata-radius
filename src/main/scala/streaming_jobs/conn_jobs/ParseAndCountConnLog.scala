@@ -530,7 +530,7 @@ object ParseAndCountConnLog {
           // Make rdd from sequence then save to postgres
           //SAVE TO ES
           //var brasCountIndex = "count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
-          // SAVE TO  ES v1.1
+          // SAVE TO  ES v1.1 - USING FOR BRAS OUTLY
           //var brasCountType = "bras_count"
           //brasCountObjectRDD.saveToEs("count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) + "/" + brasCountType)
           // Send to Top  50 To PowerBI

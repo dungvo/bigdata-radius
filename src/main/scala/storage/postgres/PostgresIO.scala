@@ -56,6 +56,10 @@ object PostgresIO extends Serializable{
     val df = loadEntireTable(sparkSession,jdbcUrl,table)
     df
   }
+  def loadTable(sparkSession: SparkSession,jdbcURL: String,table: String,connectionProperties: Properties): DataFrame={
+    val jdbcDF = sparkSession.read.jdbc(jdbcURL,table,connectionProperties)
+    jdbcDF
+  }
 
   /**
     * Pushdown a query to the database to leverage it for processing and only return the results.

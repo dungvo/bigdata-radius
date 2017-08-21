@@ -167,7 +167,8 @@ object DetectAnomalyVer2 {
         //println("RESULT-------------------------------------------------------")
         import org.elasticsearch.spark.sql._
         //result.saveToES("")
-        val result2: DataFrame = result.select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time", "rank_time","signin_distinct_count","logoff_distinct_count")
+        val result2: DataFrame = result
+          .select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time", "rank_time","signin_distinct_count","logoff_distinct_count")
           .where($"outlier" > lit(0) && col("rank_time") === lit(1))
           .cache()
         val brasids = result2.select("bras_id").rdd.map(r => r(0)).collect()
@@ -191,13 +192,106 @@ object DetectAnomalyVer2 {
         /* val result3 = result2.join(theshold,"bras_id").select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time")
            .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
            .cache()*/
+        val active_user = PostgresIO.loadTable(ss,bJdbcURL.value,"active_user",bPgProperties.value)
+            .withColumnRenamed("active_users","active_user")
+            .cache()
+
 
         val result3tmp = result2.join(theshold, Seq("bras_id"), "left_outer").na.fill(0)
-          .select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time","signin_distinct_count","logoff_distinct_count").cache()
-        val result3 = result3tmp.where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
+          .select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time","signin_distinct_count","logoff_distinct_count")
+          .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
+        //// Remove after test:
+        result3tmp.cache()
+        if(result3tmp.count() > 0){
+          val bras_result3_ids_df = result3tmp.select("bras_id").cache()
+          val bras_result3_ids = bras_result3_ids_df.rdd.map(r => r(0)).collect()
+          val outlier_with_status = bras_result3_ids_df.withColumn("label", sqlAlwaysOutlier(col("bras_id")))
+          bras_result3_ids_df.unpersist()
+          val savedToDB_DF = newestBras.join(outlier_with_status, Seq("bras_id"), "left_outer").na.fill("normal").withColumnRenamed("time","date_time")
+          println("SAVE TO DB detail 2")
+          savedToDB_DF.show(10)
+          try {
+            // TODO change to upsert.
+            //PostgresIO.writeToPostgres(ss, savedToDB_DF, bJdbcURL.value, "dwh_radius_bras_detail", SaveMode.Append, bPgProperties.value)
+            //Upsert to postgres
+            upsertDetail2ToPostgres(ss,savedToDB_DF,bJdbcURL.value)
+            //Upsert
+
+          } catch {
+            case e: SQLException => println("Error when saving data to pg dt 2" + e.getMessage + e.getMessage + e.getStackTrace)
+            case e: Exception => println("Uncatched - Error when saving data to pg dt 2 " + e.getMessage + e.getStackTrace)
+            case _ => println("Dont care :))")
+          }
+
+          val sendToBI_DF = savedToDB_DF.where("label = 'outlier'").drop("label").drop("signin_distinct_count").drop("logoff_distinct_count")
+
+          try {
+            val outlierObjectRDD = sendToBI_DF.rdd.map { row =>
+              try {
+                val time = row.getAs[java.sql.Timestamp]("date_time")
+                val outlier = new BrasCoutOutlier(
+                  row.getAs[String]("bras_id"),
+                  row.getAs[Int]("signin_total_count"),
+                  row.getAs[Int]("logoff_total_count"),
+                  time,
+                  DatetimeController.sqlTimeStampToNumberFormat(time),
+                  row.getAs[Long]("cpe_error"),
+                  row.getAs[Long]("lostip_error"),
+                  row.getAs[Long]("crit_kibana"),
+                  row.getAs[Long]("info_kibana"),
+                  row.getAs[Long]("crit_opsview"),
+                  row.getAs[Long]("ok_opsview"),
+                  row.getAs[Long]("warn_opsview"),
+                  row.getAs[Long]("unknown_opsview"),
+                  //TODO - update active user.
+                  0
+                )
+                println("OUTLIER without active user : -----------------------------------------------------")
+                println(outlier)
+                outlier
+              } catch {
+                case e: Exception => {
+                  println("ERROR IN PARSING BLOCK dt2 + " + e.printStackTrace() + " " + e.getMessage +  " " + row.toString());
+                  BrasCoutOutlier("n/a", 0, 0, new Timestamp(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                }
+                //case _: Throwable => println("Throwable ")
+              }
+
+            }.filter(x => x.bras_id != "n/a")
+            println("SEND  TO BI 2 -----------------------------------------------------")
+            import org.elasticsearch.spark._
+            outlierObjectRDD.foreachPartition { partition =>
+              if (partition.hasNext) {
+                val arrayListType = new TypeToken[java.util.ArrayList[BrasCoutOutlier]]() {}.getType
+                val gson = new Gson()
+                val metrics = new util.ArrayList[BrasCoutOutlier]()
+                partition.foreach(bras => metrics.add(bras))
+                val metricsJson = gson.toJson(metrics, arrayListType)
+                println("METRICS 2 : " + metricsJson)
+                val anomaly_bi2 = "https://api.powerbi.com/beta/4ebc9261-871a-44c5-93a5-60eb590917cd/datasets/bbfce1fb-fc9a-4a20-bee7-d3979235c70b/rows?key=AeUtdQT5bhT6AQOtZX886DdUWXGGTN56RuPpvFcslPtRFE2740JV%2Fd2Va3ed67HI5ba0bWR0MlklVNFoD2bBcw%3D%3D"
+                val http = Http(anomaly_bi2).proxy(bPowerBIProxyHost.value, 80)
+                try {
+                  val result = http.postData(metricsJson)
+                    .header("Content-Type", "application/json")
+                    .header("Charset", "UTF-8")
+                    .option(HttpOptions.readTimeout(15000)).asString
+                  println(s"Send Outlier metrics to PowerBi - chart 2 - Statuscode : ${result.statusLine}.")
+                  logger.warn(s"Send Outlier metrics to PowerBi - chart 2 - Statuscode : ${result.statusLine}.")
+                } catch {
+                  case e: java.net.SocketTimeoutException => logger.error(s"Time out Exception when sending Outlier result to BI")
+                  case _: Throwable => println("Just ignore this shit.")
+                }
+              }
+            }
+          } catch {
+            case e: Throwable => println("ERROR IN SENDING BLOCK !!---------------------------------------------------" + e.printStackTrace())
+          }
+        }
+
+        val result3 = result3tmp.join(active_user,Seq("bras_id"), "left_outer").where($"signin_total_count" / $"active_user" > lit(0.01) || $"logoff_total_count" / $"active_user" > lit(0.01))
         result3.cache()
         // TODO Debug
-        println("result3 :----- ----" + result3.count())
+        //println("result3 :----- ----" + result3.count())
         //result3.show()
         //.where($"outlier" > lit(0) && col("time_ranking") === lit(1))
         println("RESULT FILTERD : Result 3 ------------------------------------")
@@ -478,7 +572,7 @@ object DetectAnomalyVer2 {
         //TODO VERSION 3:
         // Start date 01-08-2017
         if (result3.count > 0) {
-          val bras_result3_ids_df = result3.select("bras_id").cache()
+          val bras_result3_ids_df = result3.select("bras_id","active_user").cache()
           val bras_result3_ids = bras_result3_ids_df.rdd.map(r => r(0)).collect()
           val outlier_with_status = bras_result3_ids_df.withColumn("label", sqlAlwaysOutlier(col("bras_id")))
           bras_result3_ids_df.unpersist()
@@ -519,7 +613,7 @@ object DetectAnomalyVer2 {
                   row.getAs[Long]("warn_opsview"),
                   row.getAs[Long]("unknown_opsview"),
                   //TODO - update active user.
-                  0
+                  row.getAs[Int]("active_user")
                 )
                 println("OUTLIER : -----------------------------------------------------")
                 println(outlier)
@@ -562,7 +656,8 @@ object DetectAnomalyVer2 {
           }
 
         }else{
-          val savedToDB_DF = newestBras.withColumn("label", sqlAlwaysNormal(col("bras_id"))).withColumnRenamed("time","date_time")
+          val savedToDB_DF = newestBras.join(active_user,Seq("bras_id"), "left_outer")
+            .withColumn("label", sqlAlwaysNormal(col("bras_id"))).withColumnRenamed("time","date_time")
           println("SAVE TO DB")
           savedToDB_DF.show(10)
           try {
@@ -584,6 +679,7 @@ object DetectAnomalyVer2 {
         result2.unpersist()
         result3.unpersist()
         theshold.unpersist()
+        active_user.unpersist()
         result3tmp.unpersist()
         newestBras.unpersist()
         val now2 = System.currentTimeMillis()
@@ -615,6 +711,7 @@ object DetectAnomalyVer2 {
         " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)" +
         " ON CONFLICT (bras_id,date_time) DO UPDATE  " +
         " SET signin_total_count = excluded.signin_total_count, " +
+        " active_user = excluded.active_user, " +
         " logoff_total_count = excluded.logoff_total_count, " +
         " signin_distinct_count = excluded.signin_distinct_count, " +
         " logoff_distinct_count = excluded.logoff_distinct_count, " +
@@ -633,7 +730,7 @@ object DetectAnomalyVer2 {
         session.foreach{ x =>
           st.setString(1,x.getString(0))
           st.setTimestamp(2,x.getTimestamp(1))
-          st.setInt(3,0)
+          st.setInt(3,x.getAs[Int]("active_user"))
           st.setInt(4,x.getAs[Int]("signin_total_count"))
    /*       st.setInt(4,x.getInt(3))
           st.setInt(5,x.getInt(4))
@@ -668,6 +765,74 @@ object DetectAnomalyVer2 {
       conn.close()
       logger.info(s"Save batch ${batch.toString()} successfully")
     }
+  }
+  def upsertDetail2ToPostgres(ss: SparkSession,savedToDB_DF: DataFrame,jdbcURL: String) = {
+    import ss.implicits._
+    savedToDB_DF
+      //.na.fill(0)
+      .repartition(6)
+      .foreachPartition{batch =>
+        val conn: Connection = DriverManager.getConnection(jdbcURL)
+        val st: PreparedStatement = conn.prepareStatement("INSERT INTO dwh_radius_bras_detail2(bras_id,date_time,active_user," +
+          "signin_total_count,logoff_total_count,signin_distinct_count,logoff_distinct_count,crit_kibana,info_kibana," +
+          "unknown_opsview,warn_opsview,ok_opsview,crit_opsview,cpe_error,lostip_error,label) " +
+          " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)" +
+          " ON CONFLICT (bras_id,date_time) DO UPDATE  " +
+          " SET signin_total_count = excluded.signin_total_count, " +
+          " active_user = excluded.active_user, " +
+          " logoff_total_count = excluded.logoff_total_count, " +
+          " signin_distinct_count = excluded.signin_distinct_count, " +
+          " logoff_distinct_count = excluded.logoff_distinct_count, " +
+          " cpe_error = excluded.cpe_error, " +
+          " lostip_error = excluded.lostip_error, " +
+          " crit_kibana = excluded.crit_kibana, " +
+          " info_kibana = excluded.info_kibana, " +
+          " crit_opsview = excluded.crit_opsview, " +
+          " ok_opsview = excluded.ok_opsview, " +
+          " warn_opsview = excluded.warn_opsview, " +
+          " unknown_opsview = excluded.unknown_opsview, " +
+          " label = excluded.label ;"
+        )
+        batch.grouped(100).foreach { session =>
+
+          session.foreach{ x =>
+            st.setString(1,x.getString(0))
+            st.setTimestamp(2,x.getTimestamp(1))
+            st.setInt(3,0)
+            st.setInt(4,x.getAs[Int]("signin_total_count"))
+            /*       st.setInt(4,x.getInt(3))
+                   st.setInt(5,x.getInt(4))
+                   st.setInt(6,x.getInt(5))
+                   st.setInt(7,x.getInt(6))
+                   st.setInt(8,x.getInt(7))
+                   st.setInt(9,x.getInt(8))
+                   st.setInt(10,x.getInt(9))
+                   st.setInt(11,x.getInt(10))
+                   st.setInt(12,x.getInt(11))
+                   st.setInt(13,x.getInt(12))
+                   st.setInt(14,x.getInt(13))
+                   st.setInt(15,x.getInt(14))
+                   st.setString(16,x.getString(15))*/
+            st.setInt(5,x.getAs[Int]("logoff_total_count"))
+            st.setInt(6,x.getAs[Int]("signin_distinct_count"))
+            st.setInt(7,x.getAs[Int]("logoff_distinct_count"))
+            st.setInt(8,x.getAs[Long]("cpe_error").toInt)
+            st.setInt(9,x.getAs[Long]("lostip_error").toInt)
+            st.setInt(10,x.getAs[Long]("crit_kibana").toInt)
+            st.setInt(11,x.getAs[Long]("info_kibana").toInt)
+            st.setInt(12,x.getAs[Long]("crit_opsview").toInt)
+            st.setInt(13,x.getAs[Long]("ok_opsview").toInt)
+            st.setInt(14,x.getAs[Long]("warn_opsview").toInt)
+            st.setInt(15,x.getAs[Long]("unknown_opsview").toInt)
+            st.setString(16,x.getAs[String]("label"))
+
+            st.addBatch()
+          }
+          st.executeBatch()
+        }
+        conn.close()
+        logger.info(s"Save batch ${batch.toString()} successfully")
+      }
   }
 
 }

@@ -133,7 +133,7 @@ logoff_distinct_count        int
 
 
 
-CREATE  TABLE  IF  NOT  EXISTS  dwh_radius_bras_detail  (
+CREATE  TABLE  IF  NOT  EXISTS  dwh_radius_bras_detail (
 date_time        timestamp,
 bras_id           varchar(20),
 active_user        int,
@@ -186,6 +186,10 @@ olt  varchar(30),
 portPON  varchar(30),
 time  timestamp
 );
+CREATE TABLE active_user (bras_id varchar(30) PRIMARY KEY NOT NULL, active_users int) ;
+
+CREATE TABLE IF NOT EXISTS verify(bras_id varchar(30),date_time timestamp,feedback int,PRIMARY KEY(bras_id,date_time));
+
         
 insert  into  test_table1  (col2,...,  coln)  select  col2,...,coln  from  table1;
 
@@ -306,7 +310,7 @@ FROM  (SELECT  *  FROM  bras  WHERE  time  >  '$point_of_time')  bras
 
 
 
-                   BDG-MP-01-01,2017-08-07 16:55:43.948,16,49,12.000000000000000000,30.000000000000000000,null,null,null,null,2,0
+                   BDG-MP-01-01,2017-08-07 16:55:43.948,16,49,12,30,null,null,null,null,2,0
 
 
 
@@ -322,3 +326,29 @@ WHERE id IN (SELECT id
 ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
 
 
+INSERT INTO dwh_radius_bras_detail(bras_id,date_time,active_user,
+        signin_total_count,logoff_total_count,signin_distinct_count,logoff_distinct_count,crit_kibana,info_kibana,
+        unknown_opsview,warn_opsview,ok_opsview,crit_opsview,cpe_error,lostip_error,label) VALUES (BDG-MP-01-01,2017-08-07 16:55:43.948,16,49,12,30,null,null,null,null,2,0
+);
+
+INSERT INTO dwh_radius_bras_detail(
+        date_time   ,     
+bras_id           ,
+active_user       ,
+signin_total_count ,       
+logoff_total_count  ,      
+signin_distinct_count,     
+logoff_distinct_count ,   
+cpe_error        ,
+lostip_error      ,  
+crit_kibana       ,
+info_kibana       ,
+crit_opsview       , 
+ok_opsview        ,
+warn_opsview       , 
+unknown_opsview     ,   
+label  )
+VALUES ('2017-08-21 00:55:43.948','MX480',1,1,1,1,1,1,1,1,1,1,1,1,1,'outlier');
+
+
+sudo docker network create -d bridge --subnet 172.30.41.0/24 --gateway 171.30.41.1 docke
