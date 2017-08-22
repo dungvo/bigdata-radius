@@ -12,7 +12,10 @@ case class InfParserConfig(inputTopic: String,
                       streamingCheckPointDir: String,
                       sparkConfig: Map[String,String],
                       souceKafka: Map[String,String],
-                           postgresConfig: Map[String,String]) extends Serializable{
+                           postgresConfig: Map[String,String],
+                           infPortDownKafkaTopic: String,
+                           producerConfig: Predef.Map[String,String]
+                          ) extends Serializable{
 import com.typesafe.config.{Config, ConfigFactory}
 }
 
@@ -27,7 +30,9 @@ object InfParserConfig {
       config.as[String]("streamingCheckPointDir"),
       config.as[Map[String,String]]("sparkConfig"),
       config.as[Map[String,String]]("sourceKafka"),
-      config.as[Map[String,String]]("postgresConfig")
+      config.as[Map[String,String]]("postgresConfig"),
+      config.as[String]("infPortDownKafkaTopic"),
+      config.as[Map[String,String]]("producerConfig")
     )
   }
 }

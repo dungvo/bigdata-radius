@@ -1,8 +1,10 @@
 package util
 
 import java.sql.Timestamp
+import java.text.SimpleDateFormat
 import java.util.Calendar
 
+import org.joda.time.format.DateTimeFormat
 import org.joda.time.{DateTime, Duration}
 
 import scala.collection.mutable.ArrayBuffer
@@ -38,6 +40,34 @@ object DatetimeController extends Serializable{
     val result = (minute.toFloat/100) + hour
     result
   }
+  def stringToTime(string: String,pattern: String): Timestamp = {
+    val date: DateTime = DateTime.parse(string,DateTimeFormat.forPattern(pattern) )
+    val timstamp = new Timestamp(date.getMillis)
+    timstamp
+  }
+  def stringToLong(s: String, timePattern: String) :Long = {
+    val sdf = new SimpleDateFormat(timePattern)
+    val ms = sdf.parse(s).getTime()
+    ms
+  }
+  private[this] def stringWithTimeZoneToSqlTimestamp(string: String): Timestamp ={
+    val date: DateTime = DateTime.parse(string,DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZZ") )
+    val timstamp = new Timestamp(date.getMillis)
+    timstamp
+  }
+
+  private[this] def stringToSqlTimestamp(string: String): Timestamp ={
+    val date: DateTime = DateTime.parse(string,DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss.SSS") )
+    val timstamp = new Timestamp(date.getMillis)
+    timstamp
+  }
+
+  private[this] def stringToLong(s: String): Long = {
+    val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    val ms = sdf.parse(s).getTime()
+    ms
+  }
+
 }
 object DateTimeTest{
   def main(args: Array[String]): Unit = {

@@ -1,7 +1,7 @@
 package streaming_jobs.inf_jobs
 
 import java.sql.{SQLException, Timestamp}
-import java.util.Properties
+import java.util.{Properties, UUID}
 
 import core.streaming.InfParserBroadcast
 import org.apache.spark.broadcast.Broadcast
@@ -15,9 +15,14 @@ import parser.{INFLogParser, InfLogLineObject}
 import storage.es.ElasticSearchDStreamWriter._
 import org.apache.spark.sql.cassandra._
 import storage.postgres.PostgresIO
+import org.apache.spark.TaskContext
 
 import scala.concurrent.duration.{Duration, SECONDS}
 import java.util.concurrent.Executors
+
+import core.KafkaProducerFactory
+import core.sinks.KafkaDStreamSinkExceptionHandler
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 
@@ -29,12 +34,17 @@ object ParseAndSaveInf {
                    ss: SparkSession,
                    kafkaMessages: DStream[String],
                    infParser: INFLogParser,
-                   postgresConfig: Map[String,String]): Unit = {
+                   postgresConfig: Map[String,String],
+                   infPortDownTopic: String,
+                   producerConfig: Map[String,String]): Unit = {
     val sc = ss.sparkContext
     val bParser = InfParserBroadcast.getInstance(sc, infParser)
     val bErrorType = sc.broadcast(Seq("module/cpe error", "disconnect/lost IP"))
-
+    val bInfPortDown = sc.broadcast(infPortDownTopic)
+    val bProducerConfig = sc.broadcast[Map[String,String]](producerConfig)
     val jdbcUrl = PostgresIO.getJDBCUrl(postgresConfig)
+
+    //println("START INF JOB")
 
     //println(jdbcUrl)
     val bJdbcURL = sc.broadcast(jdbcUrl)
@@ -56,12 +66,12 @@ object ParseAndSaveInf {
 
       val ts = unix_timestamp($"times_stamp_tmp", "yyyy/MM/dd HH:mm:ss").cast("timestamp")
 
-      val inf_trf = ss.sql("select log_type,host,module_ol, concat(date ,' ', time) as times_stamp_tmp, concat(host,'/',module_ol) as module FROM inf_df")
+      val inf_trf = ss.sql("select log_type,host,module_ol, concat(date ,' ', time) as times_stamp_tmp, concat(host,'/',trim(module_ol)) as module FROM inf_df")
                         .withColumn("times_stamp",ts)
                           .drop("times_stamp_tmp")
-
+      inf_trf.createOrReplaceTempView("inf_trf")
       //inf_trf.show(10)
-
+      //TEST
       try{
         PostgresIO.writeToPostgres(ss, inf_trf, bJdbcURL.value, "inf_error", SaveMode.Append, bPgProperties.value)
       }catch{
@@ -70,14 +80,48 @@ object ParseAndSaveInf {
         case _ => println("Ignore !")
       }
 
+      val filterdForPortDown = ss.sql("SELECT log_type, times_stamp, module FROM  inf_trf WHERE log_type = 'module/cpe error' OR log_type = 'disconnect/lost IP' OR log_type = 'inf port down' ")
+
+      filterdForPortDown.rdd.foreachPartition{partition =>
+        if(partition.hasNext){
+          val producer: KafkaProducer[String,String] = KafkaProducerFactory.getOrCreateProducer(bProducerConfig.value)
+          val context = TaskContext.get()
+          val callback = new KafkaDStreamSinkExceptionHandler
+          //val logger = Logger.getLogger(getClass)
+          //logger.debug(s"Send Spark partition: ${context.partitionId()} to Kafka topic in [anomaly]")
+          partition.map{row =>
+            // log_type:times_stamp:module
+            val massage = row.getAs[String]("log_type")+"#"+row.getAs[java.sql.Timestamp]("times_stamp").toString+"#"+row.getAs[String]("module")
+            //println(massage)
+            //val record = new ProducerRecord[String,String](bAnomalyDetectKafkaTopic.value,"anomaly",string)
+            //Hope this will help.
+
+            val record = new ProducerRecord[String,String](bInfPortDown.value,UUID.randomUUID().toString,massage)
+            callback.throwExceptionIfAny()
+            producer.send(record,callback)
+          }.toList
+        }
+      }
+
+
+
+
     }
+
+    val filteredForPortDown = lines.filter(ob => (ob.logType == "disconnect/lost IP" || ob.logType == "user port down" || ob.logType == "module/cpe error"))
+
+
 
     //TODO: Save to postgres.
     // DStreamToPostgres
     //lines.persistToStorageDaily(Predef.Map[String, String]("indexPrefix" -> "inf", "type" -> "rawLog"))
-    val filtered = lines.filter(ob => (ob.logType == "module/cpe error" ||
+    val filtered: DStream[InfLogLineObject] = lines.filter(ob => (ob.logType == "module/cpe error" ||
                                         ob.logType == "disconnect/lost IP" ||
                                         ob.logType == "power off"))
+    filteredForPortDown.foreachRDD{
+      rdd =>
+        val df = rdd.toDF()
+    }
 
     val mappedLogType = filtered.map { ob =>
       var logType = ob.logType
@@ -94,6 +138,7 @@ object ParseAndSaveInf {
       // .reduceByKey(_ + _)
       .reduceByKeyAndWindow(_ + _, _ - _, org.apache.spark.streaming.Duration(90 * 1000),org.apache.spark.streaming.Duration(30 * 1000))
       .filter(pair => (pair._2 > 0))
+
     val ds: DStream[HostErrorCountObject] = hostErrorCounting.map {
       value =>
         val result = new HostErrorCountObject(value._1._1, value._1._2, new Timestamp(System.currentTimeMillis()), value._2)
@@ -120,13 +165,13 @@ object ParseAndSaveInf {
         //println("Time : " + time + "rdd - id" + rdd.id)
         //TODO : Save To Postgres.
 
-        try{
+      /*  try{
           PostgresIO.writeToPostgres(ss, result_inf_tmp, bJdbcURL.value, "result_inf_tmp", SaveMode.Overwrite, bPgProperties.value)
         }catch{
           case e: SQLException => System.err.println("SQLException occur when save result_inf_tmp" + e.getSQLState + " " + e.getMessage)
           case e: Exception => System.err.println("UncatchException occur when save result_inf_tmp: " +  e.getMessage)
           case _ => println("Ignore !")
-        }
+        }*/
 
         val host_endpoint_id_df = result_inf_tmp.select("host_endpoint")
         host_endpoint_id_df.show()
@@ -163,8 +208,10 @@ object ParseAndSaveInf {
 
 
 
+            // CO VE KHONG OK LAM, JOB DIE WITHOUT ERROR CODE AFTER 14 DAYS.
+          // Back to normal.
 
-          // Set number of threads via a configuration property
+          /*// Set number of threads via a configuration property
           val pool = Executors.newFixedThreadPool(3)
           // create the implicit ExecutionContext based on our thread pool
           implicit val xc = ExecutionContext.fromExecutorService(pool)
@@ -173,6 +220,16 @@ object ParseAndSaveInf {
             val insertINFHostTask = PostgresIO.pushDownQueryAsync(insertINFHostQuery,bJdbcURL.value)
             val insertINFModuleTask = PostgresIO.pushDownQueryAsync(insertINFModuleQuery,bJdbcURL.value)
             Await.result(Future.sequence(Seq(insertINFHostTask,insertINFModuleTask)), scala.concurrent.duration.Duration(5,SECONDS))
+          }catch{
+            case e: SQLException => System.err.println("SQLException occur when save host-module : " + e.getSQLState + " " + e.getMessage)
+            case e: Exception => System.err.println("UncatchException occur when save host-module : " +  e.getMessage)
+            case _ => println("Ignore !")
+          }*/
+
+          try{
+            PostgresIO.pushDownJDBCQuery(insertINFHostQuery,bJdbcURL.value)
+            PostgresIO.pushDownJDBCQuery(insertINFModuleQuery,bJdbcURL.value)
+
           }catch{
             case e: SQLException => System.err.println("SQLException occur when save host-module : " + e.getSQLState + " " + e.getMessage)
             case e: Exception => System.err.println("UncatchException occur when save host-module : " +  e.getMessage)

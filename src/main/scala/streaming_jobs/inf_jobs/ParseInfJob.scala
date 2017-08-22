@@ -23,7 +23,7 @@ class ParseInfJob(config: InfParserConfig,source: KafkaDStreamSource)extends Spa
       val input: DStream[String] = source.createSource(ssc, config.inputTopic)
       val infParser = new parser.INFLogParser
       ParseAndSaveInf.parseAndSave(
-        ssc,ss,input,infParser,config.postgresConfig
+        ssc,ss,input,infParser,config.postgresConfig,config.infPortDownKafkaTopic,config.producerConfig
       )
     }
   }
