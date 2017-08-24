@@ -21,7 +21,7 @@ object GroupByKeyTest {
       .groupByKey()
     groupedByKey.foreach{pair =>
       var value = pair._2.toList
-      println(pair._1 + " value size " + value.size + " min time " + value.sorted + "original time " )
+      println(pair._1 + " value size " + value.min + " min time " + value.sorted + "original time " )
     }
   }
   def stringToLong(s: String): Long = {

@@ -80,7 +80,7 @@ object ParseAndSaveInf {
         case _ => println("Ignore !")
       }
 
-      val filterdForPortDown = ss.sql("SELECT log_type, times_stamp, module FROM  inf_trf WHERE log_type = 'module/cpe error' OR log_type = 'disconnect/lost IP' OR log_type = 'inf port down' ")
+      val filterdForPortDown = ss.sql("SELECT log_type, times_stamp, module FROM  inf_trf WHERE log_type = 'module/cpe error' OR log_type = 'disconnect/lost IP' OR log_type = 'user port down' OR  log_type = 'power off' ")
 
       filterdForPortDown.rdd.foreachPartition{partition =>
         if(partition.hasNext){
@@ -103,14 +103,9 @@ object ParseAndSaveInf {
         }
       }
 
-
-
-
     }
 
-    val filteredForPortDown = lines.filter(ob => (ob.logType == "disconnect/lost IP" || ob.logType == "user port down" || ob.logType == "module/cpe error"))
-
-
+    //val filteredForPortDown = lines.filter(ob => (ob.logType == "disconnect/lost IP" || ob.logType == "user port down" || ob.logType == "module/cpe error"))
 
     //TODO: Save to postgres.
     // DStreamToPostgres
@@ -118,10 +113,10 @@ object ParseAndSaveInf {
     val filtered: DStream[InfLogLineObject] = lines.filter(ob => (ob.logType == "module/cpe error" ||
                                         ob.logType == "disconnect/lost IP" ||
                                         ob.logType == "power off"))
-    filteredForPortDown.foreachRDD{
-      rdd =>
-        val df = rdd.toDF()
-    }
+    //filteredForPortDown.foreachRDD{
+    //  rdd =>
+    //    val df = rdd.toDF()
+    //}
 
     val mappedLogType = filtered.map { ob =>
       var logType = ob.logType
@@ -190,7 +185,7 @@ object ParseAndSaveInf {
             " select bh.bras_id,i.host_endpoint,i.host,i.module_ol,i.index_ol,i.cpe_error,i.lostip_error,i.date_time from result_inf_tmp i join " +
             "(SELECT * FROM brashostmapping WHERE host_endpoint in "+host_endpoint_IdsString+ " ) bh on i.host_endpoint = bh.host_endpoint "
 
-          println(insertINFIndexQuery)
+          //println(insertINFIndexQuery)
           PostgresIO.pushDownJDBCQuery(insertINFIndexQuery,bJdbcURL.value)
           //
 
@@ -198,13 +193,13 @@ object ParseAndSaveInf {
             "select bh.bras_id,i.host,i.module_ol,SUM(i.cpe_error), SUM(i.lostip_error),i.date_time " +
             "from result_inf_tmp i join (SELECT * FROM brashostmapping WHERE host_endpoint in " + host_endpoint_IdsString +
             ") bh on i.host_endpoint = bh.host_endpoint GROUP BY i.host,bh.bras_id,i.date_time,i.module_ol ;"
-          println(insertINFModuleQuery)
+          //println(insertINFModuleQuery)
 
           val insertINFHostQuery = "insert into dwh_inf_host(bras_id,host,cpe_error,lostip_error,date_time) " +
               "select bh.bras_id,i.host,SUM(i.cpe_error),SUM(i.lostip_error),i.date_time " +
               "from result_inf_tmp i join (SELECT * FROM brashostmapping WHERE host_endpoint in " + host_endpoint_IdsString +
             ") bh on i.host_endpoint = bh.host_endpoint GROUP BY i.host,bh.bras_id,i.date_time ;"
-          println(insertINFHostQuery)
+          //println(insertINFHostQuery)
 
 
 

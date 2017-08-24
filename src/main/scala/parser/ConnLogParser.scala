@@ -1,5 +1,7 @@
 package parser
 
+import org.apache.spark.sql.SparkSession
+
 import scala.util.matching.Regex
 import util.AtomicPattern
 /**
@@ -79,7 +81,7 @@ class ConnLogParser extends AbtractLogParser {
   def  extractValues_newFormat(line: String): Option[AbtractLogLine]={
     line match {
       case signInLogOffPattern(c_time2,c_ssThreadId,c_contask,c_conName,c_nASName,c_undefinedText)
-      =>  Option(ConnLogLineObject.create(c_time2,c_ssThreadId,c_contask.substring(11,17),c_conName,brasLookUp.getOrElse(c_nASName,"n/a"),c_undefinedText))
+    =>  Option(ConnLogLineObject.create(c_time2,c_ssThreadId,c_contask.substring(11,17),c_conName,brasLookUp.getOrElse(c_nASName,"n/a"),c_undefinedText))
 
       case rejectPattern(c_time2,c_ssThreadId,c_contask,c_conName,c_rejectCause,c_rejectResultDetail)
       =>  Option(ConnLogLineObject.create(c_time2,c_ssThreadId,c_contask.substring(11,17),c_conName,c_rejectCause,c_rejectResultDetail))
@@ -90,15 +92,57 @@ class ConnLogParser extends AbtractLogParser {
       //case _ => Option(ConnLogLineObject("","","","","",""))
     }
   }
+    def  simply_parse_all(line: String)={
+    line match {
+      case signInLogOffPattern(c_time2,c_ssThreadId,c_contask,c_conName,c_nASName,c_undefinedText)
+    => List(c_time2,c_ssThreadId,c_contask,c_conName,c_nASName,c_undefinedText).mkString(",")
 
+      case rejectPattern(c_time2,c_ssThreadId,c_contask,c_conName,c_rejectCause,c_rejectResultDetail)
+      =>  List(c_time2,c_ssThreadId,c_contask.substring(11,17),c_conName,c_rejectCause,c_rejectResultDetail).mkString(",")
+      //Fixme!!!! Error here !!!!!
+      case _ => None
+      //case _ => Some(ErroLogLine(line))
+      // Filter di thang nao co thuoc tinh null .
+      //case _ => Option(ConnLogLineObject("","","","","",""))
+    }
+
+  }
+    def  simply_parse_conn(line: String)= {
+      line match {
+        case signInLogOffPattern(c_time2, c_ssThreadId, c_contask, c_conName, c_nASName, c_undefinedText)
+        => List(c_time2, c_ssThreadId, c_contask, c_conName, c_nASName, c_undefinedText).mkString(",")
+
+        case _ => None
+        //case _ => Some(ErroLogLine(line))
+        // Filter di thang nao co thuoc tinh null .
+        //case _ => Option(ConnLogLineObject("","","","","",""))
+      }
+    }
+    def  simply_parse_conn(date:String,line: String)= {
+     line match {
+      case signInLogOffPattern(c_time2, c_ssThreadId, c_contask, c_conName, c_nASName, c_undefinedText)
+      => List( date+ " " + c_time2, c_ssThreadId, c_contask, c_conName, c_nASName, c_undefinedText).mkString(",")
+      case _ => null
+      //case _ => Some(ErroLogLine(line))
+      // Filter di thang nao co thuoc tinh null .
+      //case _ => Option(ConnLogLineObject("","","","","",""))
+      }
+    }
 }
 object subStringTest{
   def main(args: Array[String]): Unit = {
     //val stringTest = "Auth-Local:Reject:"
     val stringTest = "Auth-Local:LogOff:"
+    val stringTest2 = "07:00:00 00000A64 Acct-Local:LogOff: Ctfdl-160528-397, CTO-MP01-1-NEW, 77BACF41"
+    val parser = new ConnLogParser()
+    println(parser.simply_parse_conn(stringTest2))
     //val stringTest = "Auth-Local:SignIn:"
 
     val subString = stringTest.substring(11,17)
     println(subString)
+
+    val fileName = "isc-radius-2017-07-21"
+    val date = fileName.substring(fileName.length - 10,fileName.length)
+    println(date)
   }
 }

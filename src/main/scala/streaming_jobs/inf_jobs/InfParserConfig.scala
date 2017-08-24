@@ -37,3 +37,35 @@ object InfParserConfig {
   }
 }
 
+
+
+
+case class InfDisconectConfig(
+                           streamingBatchDurations: FiniteDuration,
+                           streamingCheckPointDir: String,
+                           sparkConfig: Map[String,String],
+                           souceKafka: Map[String,String],
+                           postgresConfig: Map[String,String],
+                           infPortDownKafkaTopic: String,
+                           producerConfig: Predef.Map[String,String]
+                          ) extends Serializable{
+  import com.typesafe.config.{Config, ConfigFactory}
+}
+
+object InfDisconectConfig {
+  import net.ceedubs.ficus.Ficus._
+  def apply() : InfDisconectConfig = apply(ConfigFactory.load)
+  def apply(infConfig: Config):InfDisconectConfig = {
+    val config = infConfig.getConfig("disconnectDetect")
+    new InfDisconectConfig(
+      config.as[FiniteDuration]("streamingBatchDuration"),
+      config.as[String]("streamingCheckPointDir"),
+      config.as[Map[String,String]]("sparkConfig"),
+      config.as[Map[String,String]]("sourceKafka"),
+      config.as[Map[String,String]]("postgresConfig"),
+      config.as[String]("infPortDownKafkaTopic"),
+      config.as[Map[String,String]]("producerConfig")
+    )
+  }
+}
+

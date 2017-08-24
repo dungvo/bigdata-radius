@@ -190,6 +190,12 @@ CREATE TABLE active_user (bras_id varchar(30) PRIMARY KEY NOT NULL, active_users
 
 CREATE TABLE IF NOT EXISTS verify(bras_id varchar(30),date_time timestamp,feedback int,PRIMARY KEY(bras_id,date_time));
 
+CREATE TABLE IF NOT EXISTS bras_name_ip_mapping(
+    bras_id varchar(30),
+    bras_ip varchar(15),
+    PRIMARY KEY(bras_id)
+);
+
         
 insert  into  test_table1  (col2,...,  coln)  select  col2,...,coln  from  table1;
 
@@ -198,157 +204,10 @@ insert  into  inserttest(bras_id,olt,portpon,time)
         select  b.bras_id,  bh.olt,  bh.portPON,b.time  
         from  bras  b  join  brashostmapping  bh  on  b.bras_id  =  bh.bras_id  ;
 
-HCM-MP04-1-NEW/11/1/0
-
-
-val  logType:  String,
-                                                      val  hostName:  String,
-                                                      val  date:  String,
-                                                      val  time:  String,
-                                                      val  module:  String
-
-
-
-                                                        host_endpoint        |  text                                                |                      |  extended  |                            |  
-  time                          |  timestamp  without  time  zone  |                      |  plain        |                            |  
-  module/cpe  error  |  integer                                          |                      |  plain        |                            |  
-  lostip_error          |  integer                                          |                      |  plain        |                            |  
-  host                          |  text                                                |                      |  extended  |                            |  
-  module_ol                |  text                                                |                      |  extended  |                            |  
-  index_ol                  |  text                                                |                      |  extended  |                            |  
-
-
-
-
-  insert  into  dwh_inf_index(bras_id,host_endpoint,host,module_ol,index,cpe_error,lostip_error,date_time)  select  bh.bras_id,i.host_endpoint,i.host,i.module_ol,i.index_ol,i.cpe_error,i.lostip_error,i.date_time  from  result_inf_tmp  i  join  (SELECT  *  FROM  brashostmapping  WHERE  host_endpoint  in  ('HNIP10603GC57/0/2/36','BGGP03101GC57/0/8/19','HNIP29904GC57/0/3/28','HCMP27103GC57/0/1/83','HNIP44001GC57/0/2/57','HNIP35303GC57/0/2/13','HNIP41201GC57/0/1/77','HCMP09805GC57/0/1/64','HNIP29904GC57/0/3/92','NTGP05702GC57/0/2/14','NTGP05301GC57/0/2/6','HCMP00901GC57/0/2/8','DNGP10802GC57/0/3/40','HCMP21806GC57/0/7/70','HCMP09303GC57/0/3/26','HCMP25901GC57/0/7/49','HCMP50703GC57/0/1/87','HNIP14301GC57/0/2/68','HNIP29904GC57/0/3/67','HNIP45503GC57/0/5/16','HYNP05401GC57/0/7/11','HCMP59802GC57/0/3/11','HCMP58201GC57/0/2/7','HNIP58102GC57/0/8/49','HNIP04802GC57/0/2/26','HCMP21806GC57/0/7/29','PTOP04201GC57/0/5/24','HDGP06201GC57/0/2/88','HNIP20603GC57/0/8/69','HCMP21806GC57/0/7/125','BRUP05701GC57/0/1/110','BDGP06903GC57/0/1/54','DNGP13301GC57/0/4/61','HNIP29904GC57/0/3/35','HNIP22003GC57/0/5/30','HCMP50803GC57/0/5/31','HCMP18101GC57/0/2/68','HPGP01402GC57/0/4/6','HNIP49703GC57/0/5/30','HCMP20102GC57/0/3/28','DNIP01603GC57/0/7/19','HNIP56801GC57/0/8/10','HNIP51301GC57/0/8/13','HNIP57202GC57/0/1/3','HCMP21806GC57/0/7/100','HCMP40007GC57/0/7/57','HNIP29904GC57/0/3/89','TNNP03301GC57/0/3/40','HCMP37101GC57/0/4/14','HNIP29904GC57/0/3/31','DNGP10302GC57/0/5/3','HCMP21806GC57/0/7/111','HNIP22401GC57/0/4/92','HNIP30902GC57/0/1/2','NTGP05901GC57/0/6/16','HPGP11302GC57/0/1/23','HDGP04301GC57/0/6/52','HNIP03602GC57/0/3/34','HNIP15401GC57/0/7/34','HPGP06104GC57/0/8/45','AGGP04501GC57/0/5/93','HNIP29904GC57/0/3/120','HCMP01610GC57/0/3/26','HCMP49303GC57/0/7/5','HCMP09302GC57/0/2/11','HCMP21806GC57/0/7/107','HNIP40302GC57/0/7/4','HUEP08901GC57/0/3/31','VPCP02201GC57/0/8/1','HNIP48402GC57/0/7/67','HNIP07202GC57/0/4/94','NTGP06302GC57/0/6/101','HNIP29904GC57/0/3/47','PTOP04101GC57/0/2/31','HDGP04301GC57/0/7/19','HCMP21806GC57/0/7/113','HCMP47404GC57/0/3/31')  )  bh  on  i.host_endpoint  =  bh.host_endpoint
-
-
-
-  INSERT  INTO  result_inf_tmp  (host_endpoint,  date_time,  cpe_error,  lostip_error,  host,  module_ol,  index_ol)  VALUES    ('HNIP61101GC57/0/3/76','2017-06-13  20:03:23',22,12,'HNIP61101GC57','3','76');
-
-HNIP61101GC57/0/3/76
-
-
-insert  into  dwh_inf_index(bras_id,host_endpoint,host,module_ol,index,cpe_error,lostip_error,date_time)  select  bh.bras_id,i.host_endpoint,i.host,i.module_ol,i.index_ol,i.cpe_error,i.lostip_error,i.date_time  from  result_inf_tmp  i  join  (SELECT  *  FROM  brashostmapping  WHERE  host_endpoint  in  ('HNIP10603GC57/0/2/36','BGGP03101GC57/0/8/19','HNIP29904GC57/0/3/28','HCMP27103GC57/0/1/83','HNIP44001GC57/0/2/57','HNIP41201GC57/0/1/77','HNIP61101GC57/0/3/76','HCMP09805GC57/0/1/64','HNIP29904GC57/0/3/92','NTGP05702GC57/0/2/14','NTGP05301GC57/0/2/6','HCMP00901GC57/0/2/8','DNGP10802GC57/0/3/40','HCMP21806GC57/0/7/70','HCMP09303GC57/0/3/26','HCMP25901GC57/0/7/49','HCMP50703GC57/0/1/87','HNIP14301GC57/0/2/68','HNIP29904GC57/0/3/67','HNIP45503GC57/0/5/16','HYNP05401GC57/0/7/11','HCMP59802GC57/0/3/11','HCMP58201GC57/0/2/7','HNIP58102GC57/0/8/49','HNIP04802GC57/0/2/26','HCMP21806GC57/0/7/29','PTOP04201GC57/0/5/24','HDGP06201GC57/0/2/88','HNIP20603GC57/0/8/69','HCMP21806GC57/0/7/125','BRUP05701GC57/0/1/110','BDGP06903GC57/0/1/54','DNGP13301GC57/0/4/61','HNIP29904GC57/0/3/35','HNIP22003GC57/0/5/30','HCMP50803GC57/0/5/31','HCMP18101GC57/0/2/68','HPGP01402GC57/0/4/6','HNIP49703GC57/0/5/30','HCMP20102GC57/0/3/28','DNIP01603GC57/0/7/19','HNIP56801GC57/0/8/10','HNIP51301GC57/0/8/13','HNIP57202GC57/0/1/3','HCMP21806GC57/0/7/100','HCMP40007GC57/0/7/57','HNIP29904GC57/0/3/89','TNNP03301GC57/0/3/40','HCMP37101GC57/0/4/14','HNIP29904GC57/0/3/31','DNGP10302GC57/0/5/3','HCMP21806GC57/0/7/111','HNIP22401GC57/0/4/92','HNIP30902GC57/0/1/2','NTGP05901GC57/0/6/16','HPGP11302GC57/0/1/23','HDGP04301GC57/0/6/52','HNIP03602GC57/0/3/34','HNIP15401GC57/0/7/34','HPGP06104GC57/0/8/45','AGGP04501GC57/0/5/93','HNIP29904GC57/0/3/120','HCMP01610GC57/0/3/26','HCMP49303GC57/0/7/5','HCMP09302GC57/0/2/11','HCMP21806GC57/0/7/107','HNIP40302GC57/0/7/4','HUEP08901GC57/0/3/31','VPCP02201GC57/0/8/1','HNIP48402GC57/0/7/67','HNIP07202GC57/0/4/94','NTGP06302GC57/0/6/101','HNIP29904GC57/0/3/47','PTOP04101GC57/0/2/31','HDGP04301GC57/0/7/19','HCMP21806GC57/0/7/113','HCMP47404GC57/0/3/31')  )  bh  on  i.host_endpoint  =  bh.host_endpoint
-
-        insert  into  dwh_inf_host(bras_id,host,cpe_error,lostip_error,date_time)  
-                select  bh.bras_id,i.host,SUM(i.cpe_error),SUM(i.lostip_error),i.date_time  
-                from  result_inf_tmp  i  join  
-                        (SELECT  *  FROM  brashostmapping  
-                                WHERE  host_endpoint  in  
-                                ('HNIP10603GC57/0/2/36','BGGP03101GC57/0/8/19','HNIP29904GC57/0/3/28','HCMP27103GC57/0/1/83','HNIP44001GC57/0/2/57','HNIP41201GC57/0/1/77','HNIP61101GC57/0/3/76','HCMP09805GC57/0/1/64','HNIP29904GC57/0/3/92','NTGP05702GC57/0/2/14','NTGP05301GC57/0/2/6','HCMP00901GC57/0/2/8','DNGP10802GC57/0/3/40','HCMP21806GC57/0/7/70','HCMP09303GC57/0/3/26','HCMP25901GC57/0/7/49','HCMP50703GC57/0/1/87','HNIP14301GC57/0/2/68','HNIP29904GC57/0/3/67','HNIP45503GC57/0/5/16','HYNP05401GC57/0/7/11','HCMP59802GC57/0/3/11','HCMP58201GC57/0/2/7','HNIP58102GC57/0/8/49','HNIP04802GC57/0/2/26','HCMP21806GC57/0/7/29','PTOP04201GC57/0/5/24','HDGP06201GC57/0/2/88','HNIP20603GC57/0/8/69','HCMP21806GC57/0/7/125','BRUP05701GC57/0/1/110','BDGP06903GC57/0/1/54','DNGP13301GC57/0/4/61','HNIP29904GC57/0/3/35','HNIP22003GC57/0/5/30','HCMP50803GC57/0/5/31','HCMP18101GC57/0/2/68','HPGP01402GC57/0/4/6','HNIP49703GC57/0/5/30','HCMP20102GC57/0/3/28','DNIP01603GC57/0/7/19','HNIP56801GC57/0/8/10','HNIP51301GC57/0/8/13','HNIP57202GC57/0/1/3','HCMP21806GC57/0/7/100','HCMP40007GC57/0/7/57','HNIP29904GC57/0/3/89','TNNP03301GC57/0/3/40','HCMP37101GC57/0/4/14','HNIP29904GC57/0/3/31','DNGP10302GC57/0/5/3','HCMP21806GC57/0/7/111','HNIP22401GC57/0/4/92','HNIP30902GC57/0/1/2','NTGP05901GC57/0/6/16','HPGP11302GC57/0/1/23','HDGP04301GC57/0/6/52','HNIP03602GC57/0/3/34','HNIP15401GC57/0/7/34','HPGP06104GC57/0/8/45','AGGP04501GC57/0/5/93','HNIP29904GC57/0/3/120','HCMP01610GC57/0/3/26','HCMP49303GC57/0/7/5','HCMP09302GC57/0/2/11','HCMP21806GC57/0/7/107','HNIP40302GC57/0/7/4','HUEP08901GC57/0/3/31','VPCP02201GC57/0/8/1','HNIP48402GC57/0/7/67','HNIP07202GC57/0/4/94','NTGP06302GC57/0/6/101','HNIP29904GC57/0/3/47','PTOP04101GC57/0/2/31','HDGP04301GC57/0/7/19','HCMP21806GC57/0/7/113','HCMP47404GC57/0/3/31')  )
-                          bh  on  i.host_endpoint  =  bh.host_endpoint
-                GROUP  BY  i.host,bh.bras_id,i.date_time  ;
-
-        insert  into  dwh_inf_module(bras_id,host,module,cpe_error,lostip_error,date_time)  
-                select  bh.bras_id,i.host,i.module_ol,SUM(i.cpe_error),SUM(i.lostip_error),i.date_time  
-                from  result_inf_tmp  i  join  
-                        (SELECT  *  FROM  brashostmapping  
-                                WHERE  host_endpoint  in  
-                                ('HNIP10603GC57/0/2/36','BGGP03101GC57/0/8/19','HNIP29904GC57/0/3/28','HCMP27103GC57/0/1/83','HNIP44001GC57/0/2/57','HNIP41201GC57/0/1/77','HNIP61101GC57/0/3/76','HCMP09805GC57/0/1/64','HNIP29904GC57/0/3/92','NTGP05702GC57/0/2/14','NTGP05301GC57/0/2/6','HCMP00901GC57/0/2/8','DNGP10802GC57/0/3/40','HCMP21806GC57/0/7/70','HCMP09303GC57/0/3/26','HCMP25901GC57/0/7/49','HCMP50703GC57/0/1/87','HNIP14301GC57/0/2/68','HNIP29904GC57/0/3/67','HNIP45503GC57/0/5/16','HYNP05401GC57/0/7/11','HCMP59802GC57/0/3/11','HCMP58201GC57/0/2/7','HNIP58102GC57/0/8/49','HNIP04802GC57/0/2/26','HCMP21806GC57/0/7/29','PTOP04201GC57/0/5/24','HDGP06201GC57/0/2/88','HNIP20603GC57/0/8/69','HCMP21806GC57/0/7/125','BRUP05701GC57/0/1/110','BDGP06903GC57/0/1/54','DNGP13301GC57/0/4/61','HNIP29904GC57/0/3/35','HNIP22003GC57/0/5/30','HCMP50803GC57/0/5/31','HCMP18101GC57/0/2/68','HPGP01402GC57/0/4/6','HNIP49703GC57/0/5/30','HCMP20102GC57/0/3/28','DNIP01603GC57/0/7/19','HNIP56801GC57/0/8/10','HNIP51301GC57/0/8/13','HNIP57202GC57/0/1/3','HCMP21806GC57/0/7/100','HCMP40007GC57/0/7/57','HNIP29904GC57/0/3/89','TNNP03301GC57/0/3/40','HCMP37101GC57/0/4/14','HNIP29904GC57/0/3/31','DNGP10302GC57/0/5/3','HCMP21806GC57/0/7/111','HNIP22401GC57/0/4/92','HNIP30902GC57/0/1/2','NTGP05901GC57/0/6/16','HPGP11302GC57/0/1/23','HDGP04301GC57/0/6/52','HNIP03602GC57/0/3/34','HNIP15401GC57/0/7/34','HPGP06104GC57/0/8/45','AGGP04501GC57/0/5/93','HNIP29904GC57/0/3/120','HCMP01610GC57/0/3/26','HCMP49303GC57/0/7/5','HCMP09302GC57/0/2/11','HCMP21806GC57/0/7/107','HNIP40302GC57/0/7/4','HUEP08901GC57/0/3/31','VPCP02201GC57/0/8/1','HNIP48402GC57/0/7/67','HNIP07202GC57/0/4/94','NTGP06302GC57/0/6/101','HNIP29904GC57/0/3/47','PTOP04101GC57/0/2/31','HDGP04301GC57/0/7/19','HCMP21806GC57/0/7/113','HCMP47404GC57/0/3/31')  )
-                          bh  on  i.host_endpoint  =  bh.host_endpoint
-                GROUP  BY  i.host,bh.bras_id,i.date_time,i.module_ol  ;          
-
-
-
-          val  query  =  "insert  into  dwh_inf_index(bras_id,host_endpoint,host,module_ol,index,cpe_error,lostip_error,date_time)"  +
-                        "  select  bh.bras_id,i.host_endpoint,i.host,i.module_ol,i.index_ol,i.cpe_error,i.lostip_error,i.date_time  from  result_inf_tmp  i  join  "  +
-                        "(SELECT  *  FROM  brashostmapping  WHERE  host_endpoint  in  "+host_endpoint_IdsString+  "  )  bh  on  i.host_endpoint  =  bh.host_endpoint  "
-                    println(query  )
-
-        val  insertINFModuleQuery  =  "insert  into  dwh_inf_module(bras_id,host,module,cpe_error,lostip_error,date_time)  
-                select  bh.bras_id,i.host,i.module_ol,SUM(i.cpe_error),SUM(i.lostip_error),i.date_time  
-                from  result_inf_tmp  i  join  
-                        (SELECT  *  FROM  brashostmapping  
-                                WHERE  host_endpoint  in  "  +  host_endpoint_IdsString  +
-                          "  bh  on  i.host_endpoint  =  bh.host_endpoint
-                GROUP  BY  i.host,bh.bras_id,i.date_time,i.module_ol"      
-
-        val  insertINFHostQuery  =  "insert  into  dwh_inf_host(bras_id,host,cpe_error,lostip_error,date_time)  
-                select  bh.bras_id,i.host,SUM(i.cpe_error),SUM(i.lostip_error),i.date_time  
-                from  result_inf_tmp  i  join  
-                        (SELECT  *  FROM  brashostmapping  
-                                WHERE  host_endpoint  in  "  +  host_endpoint_IdsString  +
-                          "  bh  on  i.host_endpoint  =  bh.host_endpoint
-                GROUP  BY  i.host,bh.bras_id,i.date_time  ;"                      INF-HDG-HDGP03601GC56-10.10.227.54
-                INF-HPG-HPGP02302GC57-10.10.219.124
-
-
-SELECT  *
-FROM  (SELECT  *  FROM  bras  WHERE  time  >  '$point_of_time')  bras  
-        left  join
-          (SELECT  bras_id,SUM(total_critical_count)  as  crit_kibana,SUM(total_info_count)  as  info_kibana  FROM  dwh_kibana_agg
-                  WHERE  date_time  >  '$point_of_time'    GROUP  BY  bras_id)  kibana  
-                on  bras.bras_id  =  kibana.bras_id
-        left  join  
-            (SELECT  bras_id,SUM(unknown_opsview)  as  unknown_opsview,  SUM(warn_opsview)  as  warn_opsview,  SUM(ok_opsview)  as  ok_opsview,SUM(crit_opsview)  as  crit_opsview  FROM  dwh_opsview_status
-                    WHERE  date_time  >  '$point_of_time'  GROUP  BY  bras_id)  opsview
-                    on  bras.bras_id  =  opsview.bras_id    
-        left  join  
-            (SELECT  bras_id,SUM(cpe_error)  as  cpe_error,  SUM(lostip_error)  as  lostip_error  FROM  dwh_inf_host
-                    WHERE  date_time  >  '$point_of_time'  GROUP  BY  bras_id)  inf
-                    on  bras.bras_id  =  inf.bras_id    ;            
-
-
-
-
-  val getBrasDetailQuery = s"( SELECT * FROM " +
-          s" (SELECT bras.bras_id,bras.time, bras.signin_total_count,bras.logoff_total_count," +
-          s" bras.signin_distinct_count, bras.logoff_distinct_count,kibana.crit_kibana , kibana.info_kibana , opsview.unknown_opsview , opsview.warn_opsview , " +
-          s" opsview.ok_opsview , opsview.crit_opsview , inf.cpe_error , inf.lostip_error  " +
-          s" FROM" +
-          s" (SELECT * FROM bras_count WHERE time > '$timestamp_last30mins') bras left join " +
-          s" (SELECT bras_id,SUM(total_critical_count) as crit_kibana,SUM(total_info_count) as info_kibana " +
-          s" FROM dwh_kibana_agg WHERE date_time > '$point_of_time'  " +
-          s" GROUP BY bras_id) kibana on bras.bras_id = kibana.bras_id left join   " +
-          s" (SELECT bras_id,SUM(unknown_opsview) as unknown_opsview, SUM(warn_opsview) as warn_opsview, SUM(ok_opsview) as ok_opsview,SUM(crit_opsview) as crit_opsview " +
-          s" FROM dwh_opsview_status  WHERE date_time > '$point_of_time' GROUP BY bras_id) opsview  on bras.bras_id = opsview.bras_id  left join  " +
-          s" (SELECT bras_id,SUM(cpe_error) as cpe_error, SUM(lostip_error) as lostip_error " +
-          s" FROM dwh_inf_host  WHERE date_time > '$point_of_time' GROUP BY bras_id) inf  on bras.bras_id = inf.bras_id ) as m ) n  ;"
-                   
-
-
-
-
-                   BDG-MP-01-01,2017-08-07 16:55:43.948,16,49,12,30,null,null,null,null,2,0
-
-
-
-
-DELETE FROM dwh_radius_bras_detail
-WHERE id IN (SELECT id
-              FROM (SELECT id,
-                             ROW_NUMBER() OVER (partition BY column1, column2, column3 ORDER BY id) AS rnum
-                     FROM tablename) t
-              WHERE t.rnum > 1);
-
-
-?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
-
-
-INSERT INTO dwh_radius_bras_detail(bras_id,date_time,active_user,
-        signin_total_count,logoff_total_count,signin_distinct_count,logoff_distinct_count,crit_kibana,info_kibana,
-        unknown_opsview,warn_opsview,ok_opsview,crit_opsview,cpe_error,lostip_error,label) VALUES (BDG-MP-01-01,2017-08-07 16:55:43.948,16,49,12,30,null,null,null,null,2,0
-);
-
-INSERT INTO dwh_radius_bras_detail(
-        date_time   ,     
-bras_id           ,
-active_user       ,
-signin_total_count ,       
-logoff_total_count  ,      
-signin_distinct_count,     
-logoff_distinct_count ,   
-cpe_error        ,
-lostip_error      ,  
-crit_kibana       ,
-info_kibana       ,
-crit_opsview       , 
-ok_opsview        ,
-warn_opsview       , 
-unknown_opsview     ,   
-label  )
-VALUES ('2017-08-21 00:55:43.948','MX480',1,1,1,1,1,1,1,1,1,1,1,1,1,'outlier');
 
 
 sudo docker network create -d bridge --subnet 172.30.41.0/24 --gateway 171.30.41.1 docke
+FROM php:7.0-apache
+RUN mkdir -p /var/www/html/bigdata_noc
+COPY . /var/www/html/bigdata_noc/
+WORKDIR /var/www/html/bigdata_noc

@@ -142,3 +142,17 @@ object DateAndTimeTest{
 
   }
 }
+
+object testString{
+  def main(args: Array[String]): Unit = {
+    val string  = "HNIP02703GC57/0/3/50"
+    val string2 = "HNIP02703GC57/0/3"
+    val last = string.lastIndexOf('/')
+    val sub = string.substring(0,last)
+    println(sub)
+
+
+
+  }
+}
+

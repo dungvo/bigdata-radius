@@ -29,6 +29,37 @@ class ParseInfJob(config: InfParserConfig,source: KafkaDStreamSource)extends Spa
   }
 }
 
+
+class DetectPatternErro(config: InfDisconectConfig,source: KafkaDStreamSource)extends SparkStreamingApplication{
+  override def streamingBatchDuration: FiniteDuration = config.streamingBatchDurations
+
+  override def streamingCheckpointDir: String = config.streamingCheckPointDir
+
+  override def sparkConfig: Map[String, String] = config.sparkConfig
+
+  def start(): Unit = {
+    withSparkStreamingContext { (ss, ssc) =>
+      val input: DStream[String] = source.createSource(ssc, config.infPortDownKafkaTopic)
+      PatternModuleDetect.parseAndSave(
+        ssc,ss,input,config.postgresConfig
+      )
+    }
+  }
+}
+
+
+object InfDetectJob{
+  def main(args: Array[String]): Unit = {
+    Logger.getLogger("org").setLevel(Level.OFF)
+    Logger.getLogger("akka").setLevel(Level.OFF)
+    SparkLogLevel.setStreamingLogLevels()
+    val config = InfDisconectConfig()
+    val infJob = new DetectPatternErro(config,KafkaDStreamSource(config.souceKafka))
+    infJob.start()
+  }
+}
+
+
 object InfJob{
   def main(args: Array[String]): Unit = {
     Logger.getLogger("org").setLevel(Level.OFF)
