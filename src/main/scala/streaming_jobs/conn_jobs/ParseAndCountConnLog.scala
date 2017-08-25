@@ -147,12 +147,18 @@ object ParseAndCountConnLog {
                                        cassandraConfig("table").toString,
                                        SomeColumns("time","session_id","connect_type","name","content1","content2"))*/
     // Save to ES :
-    import storage.es.ElasticSearchDStreamWriter._
-    //var today = org.joda.time.DateTime.now().toString("yyyy-MM-dd")
-    //Save conn log to ES
-    ///objectConnLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius-connlog_new","type" -> "connlog"))
-    //objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-" + today),"type" -> "connlog"))
-    //objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-test-" + today),"type" -> "connlog"))
+    try{
+      import storage.es.ElasticSearchDStreamWriter._
+      var today = org.joda.time.DateTime.now().toString("yyyy-MM-dd")
+      //Save conn log to ES
+      //objectConnLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius-connlog_new","type" -> "connlog"))
+      objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-" + today),"type" -> "connlog"))
+      //objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-test-" + today),"type" -> "connlog"))
+    } catch {
+      case e: Exception => System.err.println("UncatchException occur when save connlog to ES : " +  e.getMessage)
+      case _ => println("Ignore !")
+    }
+
 
     //Sorry, it was 7PM, i was too lazy to code. so i did too much hard code here :)).
     val connType = objectConnLogs

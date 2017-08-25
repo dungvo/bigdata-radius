@@ -57,6 +57,19 @@ object ParseAndSaveInf {
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     val lines = kafkaMessages.transform(extractMessageAndValue("message", bParser)).cache()
 
+    try{
+      import storage.es.ElasticSearchDStreamWriter._
+      var today = org.joda.time.DateTime.now().toString("yyyy-MM-dd")
+      //Save conn log to ES
+      //objectConnLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius-connlog_new","type" -> "connlog"))
+      lines.persistToStorage(Predef.Map[String,String]("index" -> ("inf-" + today),"type" -> "inf_erro"))
+      //objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-test-" + today),"type" -> "connlog"))
+    } catch {
+      case e: Exception => System.err.println("UncatchException occur when save inf log to ES : " +  e.getMessage)
+      case _ => println("Ignore !")
+    }
+
+
     lines.foreachRDD{rdd =>
       val inf_df = rdd.toDF("log_type","host","date","time","module_ol")
 
