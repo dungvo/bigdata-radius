@@ -149,24 +149,28 @@ object ParseAndCountConnLog {
     // Save to ES :
     try{
       import storage.es.ElasticSearchDStreamWriter._
-      var today = org.joda.time.DateTime.now().toString("yyyy-MM-dd")
+      // event var not work
+      //var today = org.joda.time.DateTime.now().toString("yyyy-MM-dd")
+      // maybe def work
+
       //Save conn log to ES
       //objectConnLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius-connlog_new","type" -> "connlog"))
-      objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-" + today),"type" -> "connlog"))
+      objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-" + org.joda.time.DateTime.now().toString("yyyy-MM-dd")),"type" -> "connlog"))
       //objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-test-" + today),"type" -> "connlog"))
     } catch {
       case e: Exception => System.err.println("UncatchException occur when save connlog to ES : " +  e.getMessage)
       case _ => println("Ignore !")
     }
 
+    val brasInfo = objectConnLogs.transform(removeRject).cache()
 
     //Sorry, it was 7PM, i was too lazy to code. so i did too much hard code here :)).
-    val connType = objectConnLogs
+    /*val connType = objectConnLogs
       .map(conlog => (conlog.connect_type,1))
       .reduceByKeyAndWindow((a:Int,b:Int)=>a+b,bWindowDuration.value,bSlideDuration.value)
       //.reduceByKeyAndWindow( _ + _ , _ -_ , bWindowDuration.value,bSlideDuration.value)
       .transform(skipEmptyWordCount)  //Uncomment this line to remove empty wordcoutn such as : SignInt : Count 0
-
+*/
     /*/*
     Accumulative count
     // This shit is so cool, but we don't need it anymore :)).
@@ -238,7 +242,7 @@ object ParseAndCountConnLog {
         //MongoSpark.save(data.write.option("collection","collectionName").mode("overwrite"))
     }*/
 
-    objectConnLogs.foreachRDD({
+    brasInfo.foreachRDD({
       (rdd: RDD[ConnLogLineObject],time_ : Time) =>
         // Get sparkContext from rdd
         ///val context = rdd.sparkContext
@@ -250,8 +254,13 @@ object ParseAndCountConnLog {
         // Signin - logoff logs have bras name in content 1 -> filter out reject.
         /////////////////////////////////////// BRAS ////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////////////////////////////////
-        val brasInfo = rdd.filter(line => line.connect_type != ConnectTypeEnum.Reject.toString)
-                            .toDF("time","session_id","connect_type","name","content1","line","card","port","olt","portpon","macadd","vlan","serialonu")
+        //Deal with time. minutes.
+        val logOff = rdd.map{ ob => ((ob.content1,ob.time),ob.name)}.groupByKey().map(x => (x._1,x._2.toSet.mkString(",")))
+        //Save logOff to Redis
+
+
+
+        val brasInfo = rdd.toDF("time","session_id","connect_type","name","content1","line","card","port","olt","portpon","macadd","vlan","serialonu")
                             .cache()
         brasInfo.createOrReplaceTempView("bras_info")
         //TODO : Mapping hostname -brastogether.
@@ -262,10 +271,6 @@ object ParseAndCountConnLog {
                                     .withColumnRenamed("content1","bras_id")
                                     .dropDuplicates("host_endpoint")
 
-        // XXX Debug.
-
-          //.filter(col("host_endpoint") != "n/a/n/a")
-                                    //.select("bras_id","host").filter($"host".isNotNull && length(trim($"host")) > 0)
         //Save to cassandra -- table - keyspace - cluster.
         //println(" BRAS AND HOST")
         //brasAndHost.show()
@@ -425,6 +430,11 @@ object ParseAndCountConnLog {
         }
 
 
+
+        val logOffUser =  brasInfo.select ("")
+
+
+
         // UNPERSIT
         brasCountByLine.unpersist()
         brasCountByCard.unpersist()
@@ -432,242 +442,253 @@ object ParseAndCountConnLog {
 
         //////////////////////////// Bras ///////////////////////////////////////
 
-        val brasCount = brasInfo.select("name","connect_type","content1")
-          .groupBy(col("content1"),col("connect_type"))
-          .agg(count(col("name")).as("count_by_bras"),countDistinct(col("name")).as("count_distinct_by_bras"))
-          .cache()
 
-         val brasCountTotalPivot =  brasCount.groupBy("content1").pivot("connect_type",bConnectType.value)
-                                                .agg(expr("coalesce(first(count_by_bras),0)"))
-                                                 .withColumnRenamed("SignIn","signin_total_count")
-                                                 .withColumnRenamed("LogOff","logoff_total_count")
-
-        val brasCountDistinctPivot = brasCount.groupBy("content1").pivot("connect_type",bConnectType.value)
-                                                .agg(expr("coalesce(first(count_distinct_by_bras),0)"))
-                                                .withColumnRenamed("SignIn","signin_distinct_count")
-                                                .withColumnRenamed("LogOff","logoff_distinct_count")
-
-        val brasCountPivot: DataFrame = brasCountTotalPivot.join(brasCountDistinctPivot,"content1")
-                                               //.withColumn("time",sqlTimeFunc(col("content1")))
-                                               .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
-                                               .withColumnRenamed("content1","bras_id")
-                                               .cache()
-
-        //println(s"========= $time_ =========")
-        if(brasCountPivot.count() > 0) {
-          //brasCount.show()
-          // Save aggregated results to MONGO
-          /*brasCount.write.mode(SaveMode.Append)
-                    .mongo(WriteConfig(Map("collection"->"connlog_bras_count"),Some(WriteConfig(context))))*/
-
-          val brasSumCounting = brasCountPivot.agg(sum(col("signin_total_count")).as("total_signin"),
-            sum(col("logoff_total_count")).as("total_logoff"),
-            sum(col("signin_distinct_count")).as("total_signin_distinct"),
-            sum(col("logoff_distinct_count")).as("total_logoff_distinct"))
-            .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+        brasInfo.unpersist()
 
 
-          val head: Row = brasSumCounting.head(1).toList(0)
 
-          val signInTotalCount = head.getAs[Long]("total_signin")
-          val logOffTotalCount = head.getAs[Long]("total_logoff")
-          val signInDistinctTotalCount = head.getAs[Long]("total_signin_distinct")
-          val logOffDistinctTotalCount = head.getAs[Long]("total_logoff_distinct")
-          val timeBrasCount = head.getAs[java.sql.Timestamp]("time")
+    })
 
-          val brasSumCountTotal = new BrasSumCount(signin_total= signInTotalCount,
-            logOffTotalCount,
-            signin_user = signInDistinctTotalCount,
-            logoff_user = logOffDistinctTotalCount,
-            time = timeBrasCount)
-          val arrayListType = new TypeToken[java.util.ArrayList[BrasSumCount]]() {}.getType
-          val brasSumCountMetrics = new util.ArrayList[BrasSumCount]()
-          brasSumCountMetrics.add(brasSumCountTotal)
-          val  brasSumCountJson =    new Gson().toJson(brasSumCountMetrics,arrayListType)
-          val httpBrasSumcount = Http(bUrlBrasSumCount.value).proxy(powerBIConfig("proxy_host"),80)
-          try {
-            val resultBrasSumcount = httpBrasSumcount.postData(brasSumCountJson)
-              .header("Content-Type", "application/json")
-              .header("Charset", "UTF-8")
-              .option(HttpOptions.readTimeout(15000)).asString
-            logger.info(s"Send BRAS SUM COUNT metrics to PowerBi - Statuscode : ${resultBrasSumcount.statusLine}.")
-          }  catch {
-            case e:java.net.SocketTimeoutException => logger.error(s"Time out Exception when sending BRAS counting result to BI")
-            case _: Throwable => println("Just ignore this shit.")
-          }
+    brasInfo.window(bWindowDuration.value,bSlideDuration.value).foreachRDD({batch =>
+      val brasInfo = batch.toDF("time","session_id","connect_type","name","content1","line","card","port","olt","portpon","macadd","vlan","serialonu")
+        .cache()
+      brasInfo.createOrReplaceTempView("bras_info")
+      val brasCount = brasInfo.select("name","connect_type","content1")
+        .groupBy(col("content1"),col("connect_type"))
+        .agg(count(col("name")).as("count_by_bras"),countDistinct(col("name")).as("count_distinct_by_bras"))
+        .cache()
+
+      val brasCountTotalPivot =  brasCount.groupBy("content1").pivot("connect_type",bConnectType.value)
+        .agg(expr("coalesce(first(count_by_bras),0)"))
+        .withColumnRenamed("SignIn","signin_total_count")
+        .withColumnRenamed("LogOff","logoff_total_count")
+
+      val brasCountDistinctPivot = brasCount.groupBy("content1").pivot("connect_type",bConnectType.value)
+        .agg(expr("coalesce(first(count_distinct_by_bras),0)"))
+        .withColumnRenamed("SignIn","signin_distinct_count")
+        .withColumnRenamed("LogOff","logoff_distinct_count")
+
+      val brasCountPivot: DataFrame = brasCountTotalPivot.join(brasCountDistinctPivot,"content1")
+        //.withColumn("time",sqlTimeFunc(col("content1")))
+        .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+        .withColumnRenamed("content1","bras_id")
+        .cache()
+
+      //println(s"========= $time_ =========")
+      if(brasCountPivot.count() > 0) {
+        //brasCount.show()
+        // Save aggregated results to MONGO
+        /*brasCount.write.mode(SaveMode.Append)
+                  .mongo(WriteConfig(Map("collection"->"connlog_bras_count"),Some(WriteConfig(context))))*/
+
+        val brasSumCounting = brasCountPivot.agg(sum(col("signin_total_count")).as("total_signin"),
+          sum(col("logoff_total_count")).as("total_logoff"),
+          sum(col("signin_distinct_count")).as("total_signin_distinct"),
+          sum(col("logoff_distinct_count")).as("total_logoff_distinct"))
+          .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
 
 
-          //SEND TO PowerBI:
-          //val window3 = Window.partitionBy("bras_id").orderBy($"sum".desc)
-          val sumUp = brasCountPivot.withColumn("sum",$"signin_total_count" + $"logoff_total_count")
+        val head: Row = brasSumCounting.head(1).toList(0)
 
-                                            //.withColumn("rank_sum",rank().over(window3))
-            val top50Sum = sumUp.select(col("bras_id"),col("signin_total_count"),col("logoff_total_count"),col("signin_distinct_count"),col("logoff_distinct_count"),col("time"))
-                                .orderBy(col("sum").desc)
-                                .limit(50)
-            //.where(col("rank_sum") <= lit(50))
+        val signInTotalCount = head.getAs[Long]("total_signin")
+        val logOffTotalCount = head.getAs[Long]("total_logoff")
+        val signInDistinctTotalCount = head.getAs[Long]("total_signin_distinct")
+        val logOffDistinctTotalCount = head.getAs[Long]("total_logoff_distinct")
+        val timeBrasCount = head.getAs[java.sql.Timestamp]("time")
 
-          val brasCountObjectRDDTop50 = top50Sum.rdd.map{ row =>
+        val brasSumCountTotal = new BrasSumCount(signin_total= signInTotalCount,
+          logOffTotalCount,
+          signin_user = signInDistinctTotalCount,
+          logoff_user = logOffDistinctTotalCount,
+          time = timeBrasCount)
+        val arrayListType = new TypeToken[java.util.ArrayList[BrasSumCount]]() {}.getType
+        val brasSumCountMetrics = new util.ArrayList[BrasSumCount]()
+        brasSumCountMetrics.add(brasSumCountTotal)
+        val  brasSumCountJson =    new Gson().toJson(brasSumCountMetrics,arrayListType)
+        val httpBrasSumcount = Http(bUrlBrasSumCount.value).proxy(powerBIConfig("proxy_host"),80)
+        try {
+          val resultBrasSumcount = httpBrasSumcount.postData(brasSumCountJson)
+            .header("Content-Type", "application/json")
+            .header("Charset", "UTF-8")
+            .option(HttpOptions.readTimeout(15000)).asString
+          logger.info(s"Send BRAS SUM COUNT metrics to PowerBi - Statuscode : ${resultBrasSumcount.statusLine}.")
+        }  catch {
+          case e:java.net.SocketTimeoutException => logger.error(s"Time out Exception when sending BRAS counting result to BI")
+          case _: Throwable => println("Just ignore this shit.")
+        }
+
+
+        //SEND TO PowerBI:
+        //val window3 = Window.partitionBy("bras_id").orderBy($"sum".desc)
+        val sumUp = brasCountPivot.withColumn("sum",$"signin_total_count" + $"logoff_total_count")
+
+        //.withColumn("rank_sum",rank().over(window3))
+        val top50Sum = sumUp.select(col("bras_id"),col("signin_total_count"),col("logoff_total_count"),col("signin_distinct_count"),col("logoff_distinct_count"),col("time"))
+          .orderBy(col("sum").desc)
+          .limit(50)
+        //.where(col("rank_sum") <= lit(50))
+
+        val brasCountObjectRDDTop50 = top50Sum.rdd.map{ row =>
           //val brasCountObjectRDD = brasCountPivot.rdd.map{ row =>
-            val brasCount: BrasCountObject = new BrasCountObject(
-              row.getAs[String]("bras_id"),
-              row.getAs[Long]("signin_total_count").toInt,
-              row.getAs[Long]("logoff_total_count").toInt,
-              row.getAs[Long]("signin_distinct_count").toInt,
-              row.getAs[Long]("logoff_distinct_count").toInt,
-              row.getAs[java.sql.Timestamp]("time")
-            )
-            brasCount
-          }
+          val brasCount: BrasCountObject = new BrasCountObject(
+            row.getAs[String]("bras_id"),
+            row.getAs[Long]("signin_total_count").toInt,
+            row.getAs[Long]("logoff_total_count").toInt,
+            row.getAs[Long]("signin_distinct_count").toInt,
+            row.getAs[Long]("logoff_distinct_count").toInt,
+            row.getAs[java.sql.Timestamp]("time")
+          )
+          brasCount
+        }
 
-          val brasCountObjectRDD = brasCountPivot.rdd.map{ row =>
-            //val brasCountObjectRDD = brasCountPivot.rdd.map{ row =>
-            val brasCount: BrasCountObject = new BrasCountObject(
-              row.getAs[String]("bras_id"),
-              row.getAs[Long]("signin_total_count").toInt,
-              row.getAs[Long]("logoff_total_count").toInt,
-              row.getAs[Long]("signin_distinct_count").toInt,
-              row.getAs[Long]("logoff_distinct_count").toInt,
-              row.getAs[java.sql.Timestamp]("time")
-            )
-            brasCount
-          }
+        val brasCountObjectRDD = brasCountPivot.rdd.map{ row =>
+          //val brasCountObjectRDD = brasCountPivot.rdd.map{ row =>
+          val brasCount: BrasCountObject = new BrasCountObject(
+            row.getAs[String]("bras_id"),
+            row.getAs[Long]("signin_total_count").toInt,
+            row.getAs[Long]("logoff_total_count").toInt,
+            row.getAs[Long]("signin_distinct_count").toInt,
+            row.getAs[Long]("logoff_distinct_count").toInt,
+            row.getAs[java.sql.Timestamp]("time")
+          )
+          brasCount
+        }
 
-          // Make rdd from sequence then save to postgres
-          //SAVE TO ES
-          //var brasCountIndex = "count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
-          // SAVE TO  ES v1.1 - USING FOR BRAS OUTLY
-          //var brasCountType = "bras_count"
-          //brasCountObjectRDD.saveToEs("count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) + "/" + brasCountType)
-          // Send to Top  50 To PowerBI
-          brasCountObjectRDDTop50.foreachPartition{partition =>
-            val copy = partition
+        // Make rdd from sequence then save to postgres
+        //SAVE TO ES
+        //var brasCountIndex = "count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
+        // SAVE TO  ES v1.1 - USING FOR BRAS OUTLY
+        //var brasCountType = "bras_count"
+        //brasCountObjectRDD.saveToEs("count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) + "/" + brasCountType)
+        // Send to Top  50 To PowerBI
+        brasCountObjectRDDTop50.foreachPartition{partition =>
+          val copy = partition
 
-            // Maybe we have many null partitions.
-            if(partition.hasNext){
-              val arrayListType = new TypeToken[java.util.ArrayList[BrasCountObject]]() {}.getType
-              val gson = new Gson()
-              val metrics = new util.ArrayList[BrasCountObject]()
-              partition.foreach(bras => metrics.add(bras))
-              val metricsJson = gson.toJson(metrics, arrayListType)
-              val http = Http(bUrlBrasCount.value).proxy(powerBIConfig("proxy_host"),80)
-              try{
-                val result = http.postData(metricsJson)
-                  .header("Content-Type", "application/json")
-                  .header("Charset", "UTF-8")
-                  .option(HttpOptions.readTimeout(15000)).asString
-                logger.info(s"Send BRAS metrics to PowerBi - Statuscode : ${result.statusLine}.")
-              }catch
-                {
-                  case e:java.net.SocketTimeoutException => logger.error(s"Time out Exception when sending INF counting result to BI")
-                  case _: Throwable => println("Just ignore this shit.")
-                }
-
-              // Named the index
-              //val brasCountIndex = "count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd")+"-"  + Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-              //val brasCountType = "bras_count"
-
-              // Make rdd from sequence then save to postgres
-              //SAVE TO ES
-
-              //brasCountRDD.saveToEs(brasCountIndex + "/" + brasCountType)
-              //context.makeRDD(metrics.toArray()).saveToEs(brasCountIndex + "/" + brasCountType)
-              //sc.makeRDD(metrics.toArray()).saveToEs(brasCountIndex + "/" + brasCountType)
-
-              //println(result.statusLine)
-              // S
-
-            }
-          }
-          // Send All bras count to Kafka // Consider remove this one.
-          // TODO Replace with directly save data to postgres.
-/*          brasCountObjectRDD.foreachPartition{partition =>
-            if(partition.hasNext){
-              val producer: KafkaProducer[String,String] = KafkaProducerFactory.getOrCreateProducer(bProducerConfig.value)
-              val context = TaskContext.get()
-              val callback = new KafkaDStreamSinkExceptionHandler
-              //val logger = Logger.getLogger(getClass)
-              //logger.debug(s"Send Spark partition: ${context.partitionId()} to Kafka topic in [anomaly]")
-              partition.map{countObjectRDD =>
-                // BRASID:LOGOFFTOTAL:SIGNINTOTAL:LOGOFFDISTINCT:SIGNINDISTINCT:TIME
-                val string = countObjectRDD.bras_id+"#"+countObjectRDD.signin_total_count+"#"+countObjectRDD.logoff_total_count+"#"+countObjectRDD.signin_distinct_count+"#"+countObjectRDD.logoff_distinct_count+"#"+countObjectRDD.time
-                //val record = new ProducerRecord[String,String](bAnomalyDetectKafkaTopic.value,"anomaly",string)
-                //Hope this will help.
-
-                val record = new ProducerRecord[String,String](bAnomalyDetectKafkaTopic.value,UUID.randomUUID().toString,string)
-                callback.throwExceptionIfAny()
-                producer.send(record,callback)
-              }.toList
-            }
-          }*/
-          //Send To Kafka - For Anomaly detection
-          //Save Bras count to postgres
-
-
-
-          try{
-            PostgresIO.writeToPostgres(ss,brasCountPivot,bJdbcURL.value,"bras_count",SaveMode.Append,bPgProperties.value)
-          }catch{
-            case e: SQLException => System.err.println("SQLException occur when save bras_count : " + e.getSQLState + " " + e.getMessage)
-            case e: Exception => System.err.println("UncatchException occur when save bras_count : " +  e.getMessage)
-            case _ => println("Ignore !")
-          }
-
-
-
-
-          //brasCountPivot.unpersist()
-          // old version - after 1.0
-/*          val metrics = new util.ArrayList[BrasCountObject]()
-          brasCountPivot.rdd.foreachPartition { partition =>
-            if(partition.hasNext) {
-              val arrayListType = new TypeToken[java.util.ArrayList[BrasCountObject]]() {}.getType
-              val gson = new Gson()
-
-              partition.foreach{ row =>
-                val brasCount: BrasCountObject = new BrasCountObject(
-                  row.getAs[String]("bras_id"),
-                  row.getAs[Long]("signin_total_count").toInt,
-                  row.getAs[Long]("logoff_total_count").toInt,
-                  row.getAs[Long]("signin_distinct_count").toInt,
-                  row.getAs[Long]("logoff_distinct_count").toInt,
-                  row.getAs[java.sql.Timestamp]("time")
-                )
-                metrics.add(brasCount)
-                //brasCount
-              }
-              //brasCountRDD.foreach{bras => metrics.add(bras)}
-
-              val metricsJson = gson.toJson(metrics, arrayListType)
-              val http = Http(bUrlBrasCount.value).proxy(powerBIConfig("proxy_host"),80)
+          // Maybe we have many null partitions.
+          if(partition.hasNext){
+            val arrayListType = new TypeToken[java.util.ArrayList[BrasCountObject]]() {}.getType
+            val gson = new Gson()
+            val metrics = new util.ArrayList[BrasCountObject]()
+            partition.foreach(bras => metrics.add(bras))
+            val metricsJson = gson.toJson(metrics, arrayListType)
+            val http = Http(bUrlBrasCount.value).proxy(powerBIConfig("proxy_host"),80)
+            try{
               val result = http.postData(metricsJson)
-              .header("Content-Type", "application/json")
-              .header("Charset", "UTF-8")
-              .option(HttpOptions.readTimeout(10000)).asString
-            logger.info(s"Send BRAS metrics to PowerBi - Statuscode : ${result.statusLine}.")
-              // Named the index
-            val brasCountIndex = "count_by_bras-"+today  + Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-            val brasCountType = "bras_count"
+                .header("Content-Type", "application/json")
+                .header("Charset", "UTF-8")
+                .option(HttpOptions.readTimeout(15000)).asString
+              logger.info(s"Send BRAS metrics to PowerBi - Statuscode : ${result.statusLine}.")
+            }catch
+              {
+                case e:java.net.SocketTimeoutException => logger.error(s"Time out Exception when sending INF counting result to BI")
+                case _: Throwable => println("Just ignore this shit.")
+              }
 
-             // Make rdd from sequence then save to postgres
-              //SAVE TO ES
+            // Named the index
+            //val brasCountIndex = "count_by_bras-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd")+"-"  + Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            //val brasCountType = "bras_count"
 
-              //brasCountRDD.saveToEs(brasCountIndex + "/" + brasCountType)
-              //context.makeRDD(metrics.toArray()).saveToEs(brasCountIndex + "/" + brasCountType)
-              //sc.makeRDD(metrics.toArray()).saveToEs(brasCountIndex + "/" + brasCountType)
+            // Make rdd from sequence then save to postgres
+            //SAVE TO ES
+
+            //brasCountRDD.saveToEs(brasCountIndex + "/" + brasCountType)
+            //context.makeRDD(metrics.toArray()).saveToEs(brasCountIndex + "/" + brasCountType)
+            //sc.makeRDD(metrics.toArray()).saveToEs(brasCountIndex + "/" + brasCountType)
 
             //println(result.statusLine)
-            }
-          }*/
+            // S
 
-          //VER 1.0
-          // Save aggregated results to Postgres
-          // PostgresIO.writeToPostgres(ss,brasCountPivot,bJdbcURL.value,"bras_count",SaveMode.Append,bPgProperties.value)
-          // Save aggregated results to ES :
-
+          }
         }
-        /////////////////////////////////////// INF ////////////////////////////////////////////////////////////
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Send All bras count to Kafka // Consider remove this one.
+        // TODO Replace with directly save data to postgres.
+        /*          brasCountObjectRDD.foreachPartition{partition =>
+                    if(partition.hasNext){
+                      val producer: KafkaProducer[String,String] = KafkaProducerFactory.getOrCreateProducer(bProducerConfig.value)
+                      val context = TaskContext.get()
+                      val callback = new KafkaDStreamSinkExceptionHandler
+                      //val logger = Logger.getLogger(getClass)
+                      //logger.debug(s"Send Spark partition: ${context.partitionId()} to Kafka topic in [anomaly]")
+                      partition.map{countObjectRDD =>
+                        // BRASID:LOGOFFTOTAL:SIGNINTOTAL:LOGOFFDISTINCT:SIGNINDISTINCT:TIME
+                        val string = countObjectRDD.bras_id+"#"+countObjectRDD.signin_total_count+"#"+countObjectRDD.logoff_total_count+"#"+countObjectRDD.signin_distinct_count+"#"+countObjectRDD.logoff_distinct_count+"#"+countObjectRDD.time
+                        //val record = new ProducerRecord[String,String](bAnomalyDetectKafkaTopic.value,"anomaly",string)
+                        //Hope this will help.
+
+                        val record = new ProducerRecord[String,String](bAnomalyDetectKafkaTopic.value,UUID.randomUUID().toString,string)
+                        callback.throwExceptionIfAny()
+                        producer.send(record,callback)
+                      }.toList
+                    }
+                  }*/
+        //Send To Kafka - For Anomaly detection
+        //Save Bras count to postgres
+
+
+
+        try{
+          PostgresIO.writeToPostgres(ss,brasCountPivot,bJdbcURL.value,"bras_count",SaveMode.Append,bPgProperties.value)
+        }catch{
+          case e: SQLException => System.err.println("SQLException occur when save bras_count : " + e.getSQLState + " " + e.getMessage)
+          case e: Exception => System.err.println("UncatchException occur when save bras_count : " +  e.getMessage)
+          case _ => println("Ignore !")
+        }
+
+
+
+
+        //brasCountPivot.unpersist()
+        // old version - after 1.0
+        /*          val metrics = new util.ArrayList[BrasCountObject]()
+                  brasCountPivot.rdd.foreachPartition { partition =>
+                    if(partition.hasNext) {
+                      val arrayListType = new TypeToken[java.util.ArrayList[BrasCountObject]]() {}.getType
+                      val gson = new Gson()
+
+                      partition.foreach{ row =>
+                        val brasCount: BrasCountObject = new BrasCountObject(
+                          row.getAs[String]("bras_id"),
+                          row.getAs[Long]("signin_total_count").toInt,
+                          row.getAs[Long]("logoff_total_count").toInt,
+                          row.getAs[Long]("signin_distinct_count").toInt,
+                          row.getAs[Long]("logoff_distinct_count").toInt,
+                          row.getAs[java.sql.Timestamp]("time")
+                        )
+                        metrics.add(brasCount)
+                        //brasCount
+                      }
+                      //brasCountRDD.foreach{bras => metrics.add(bras)}
+
+                      val metricsJson = gson.toJson(metrics, arrayListType)
+                      val http = Http(bUrlBrasCount.value).proxy(powerBIConfig("proxy_host"),80)
+                      val result = http.postData(metricsJson)
+                      .header("Content-Type", "application/json")
+                      .header("Charset", "UTF-8")
+                      .option(HttpOptions.readTimeout(10000)).asString
+                    logger.info(s"Send BRAS metrics to PowerBi - Statuscode : ${result.statusLine}.")
+                      // Named the index
+                    val brasCountIndex = "count_by_bras-"+today  + Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+                    val brasCountType = "bras_count"
+
+                     // Make rdd from sequence then save to postgres
+                      //SAVE TO ES
+
+                      //brasCountRDD.saveToEs(brasCountIndex + "/" + brasCountType)
+                      //context.makeRDD(metrics.toArray()).saveToEs(brasCountIndex + "/" + brasCountType)
+                      //sc.makeRDD(metrics.toArray()).saveToEs(brasCountIndex + "/" + brasCountType)
+
+                    //println(result.statusLine)
+                    }
+                  }*/
+
+        //VER 1.0
+        // Save aggregated results to Postgres
+        // PostgresIO.writeToPostgres(ss,brasCountPivot,bJdbcURL.value,"bras_count",SaveMode.Append,bPgProperties.value)
+        // Save aggregated results to ES :
+
+      }
+      /////////////////////////////////////// INF ////////////////////////////////////////////////////////////
+      ///////////////////////////////////////////////////////////////////////////////////////////////////////
       /*  val infInfo   =  rdd.toDF("time","session_id","connect_type","name","content1","content2")
                             .select("name","connect_type")
         val infMerged =  infInfo.withColumn("host",sqlLookup(col("name")))
@@ -686,108 +707,106 @@ object ParseAndCountConnLog {
         val infCountPivot = infCountTotalPivot.join(infCountDistinctPivot,"host")
           //.withColumn("time",sqlTimeFunc(col("host")))
           .withColumn("time",org.apache.spark.sql.functions.current_timestamp()).cache()*/
-          //.withColumn("time",org.apache.spark.sql.functions.current_timestamp())
-          //.withColumnRenamed("content1","bras_id")
+      //.withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+      //.withColumnRenamed("content1","bras_id")
 
-        //println(s"========= $time_ =========")
-        /*if(infCountPivot.count() > 0) {
-          //Some day, may be we will need sum all signin logoff by inf.
+      //println(s"========= $time_ =========")
+      /*if(infCountPivot.count() > 0) {
+        //Some day, may be we will need sum all signin logoff by inf.
 
-          //Convert DF to RDD[InfCountObject]
-          val infCountObjectRDD = infCountPivot.rdd.map{ row =>
-            val infCount = new InfCountObject(
-              row.getAs[String]("host"),
-              row.getAs[Long]("signin_total_count").toInt,
-              row.getAs[Long]("logoff_total_count").toInt,
-              row.getAs[Long]("signin_distinct_count").toInt,
-              row.getAs[Long]("logoff_distinct_count").toInt,
-              row.getAs[Timestamp]("time")
-            )
-            infCount
+        //Convert DF to RDD[InfCountObject]
+        val infCountObjectRDD = infCountPivot.rdd.map{ row =>
+          val infCount = new InfCountObject(
+            row.getAs[String]("host"),
+            row.getAs[Long]("signin_total_count").toInt,
+            row.getAs[Long]("logoff_total_count").toInt,
+            row.getAs[Long]("signin_distinct_count").toInt,
+            row.getAs[Long]("logoff_distinct_count").toInt,
+            row.getAs[Timestamp]("time")
+          )
+          infCount
+        }
+        //Save to es - named index and type
+        val infCountIndex = "count_by_inf-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
+        val infCountType = "inf_count"
+        // Make rdd from sequence then save to postgres
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //SAVE TO ES
+        infCountObjectRDD.saveToEs("count_by_inf-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) + "/" + infCountType)
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Traveser rdd.foreachPartition -> add element to metrics Array
+        //TODO Uncomment this block to ENABLE sending inf metric to power BI
+        //TODO : Begin
+      /*  infCountObjectRDD.foreachPartition{partition =>
+          if(partition.hasNext) {
+            val infMetrics = new util.ArrayList[InfCountObject]()
+            val arrayListType = new TypeToken[java.util.ArrayList[InfCountObject]]() {}.getType
+            val gson = new Gson()
+            partition.foreach { infCount =>
+              infMetrics.add(infCount)
+            }
+            val infMetricsJson = gson.toJson(infMetrics, arrayListType)
+            val infHttp = Http(bUrlInfCount.value).proxy(powerBIConfig("proxy_host"),80)
+            val infResult = infHttp.postData(infMetricsJson)
+              .header("Content-Type", "application/json")
+              .header("Charset", "UTF-8")
+              .option(HttpOptions.readTimeout(10000)).asString
+            logger.info(s"Send INF metrics to PowerBi - Statuscode : ${infResult.statusLine}.")
           }
-          //Save to es - named index and type
-          val infCountIndex = "count_by_inf-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
-          val infCountType = "inf_count"
-          // Make rdd from sequence then save to postgres
-          ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-          //SAVE TO ES
-          infCountObjectRDD.saveToEs("count_by_inf-"+org.joda.time.DateTime.now().toString("yyyy-MM-dd") +"-" + "%02d".format(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) + "/" + infCountType)
-          ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-          // Traveser rdd.foreachPartition -> add element to metrics Array
-          //TODO Uncomment this block to ENABLE sending inf metric to power BI
-          //TODO : Begin
-        /*  infCountObjectRDD.foreachPartition{partition =>
-            if(partition.hasNext) {
-              val infMetrics = new util.ArrayList[InfCountObject]()
-              val arrayListType = new TypeToken[java.util.ArrayList[InfCountObject]]() {}.getType
-              val gson = new Gson()
-              partition.foreach { infCount =>
-                infMetrics.add(infCount)
-              }
-              val infMetricsJson = gson.toJson(infMetrics, arrayListType)
-              val infHttp = Http(bUrlInfCount.value).proxy(powerBIConfig("proxy_host"),80)
-              val infResult = infHttp.postData(infMetricsJson)
-                .header("Content-Type", "application/json")
-                .header("Charset", "UTF-8")
-                .option(HttpOptions.readTimeout(10000)).asString
-              logger.info(s"Send INF metrics to PowerBi - Statuscode : ${infResult.statusLine}.")
-            }
-          }*/
-          //TODO : End
-
-          // OLD VERSION 1.0
-          /*val infMetrics = new util.ArrayList[InfCountObject]()
-          infCountPivot.rdd.foreachPartition { partition =>
-            if(partition.hasNext) {
-              val arrayListType = new TypeToken[java.util.ArrayList[InfCountObject]]() {}.getType
-              val gson = new Gson()
-              partition.foreach { row =>
-                val infCount = new InfCountObject(
-                  row.getAs[String]("host"),
-                  row.getAs[Long]("signin_total_count").toInt,
-                  row.getAs[Long]("logoff_total_count").toInt,
-                  row.getAs[Long]("signin_distinct_count").toInt,
-                  row.getAs[Long]("logoff_distinct_count").toInt,
-                  row.getAs[Timestamp]("time")
-                )
-                infMetrics.add(infCount)
-              }
-              val infMetricsJson = gson.toJson(infMetrics, arrayListType)
-              val infHttp = Http(bUrlBrasCount.value).proxy(powerBIConfig("proxy_host"),80)
-              val infResult = infHttp.postData(infMetricsJson)
-                .header("Content-Type", "application/json")
-                .header("Charset", "UTF-8")
-                .option(HttpOptions.readTimeout(10000)).asString
-              logger.info(s"Send INF metrics to PowerBi - Statuscode : ${infResult.statusLine}.")
-
-              // Named the index
-              //val brasCountIndex = "count_by_inf-" +today+ Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-              //sval brasCountType = "inf_count"
-
-              // Make rdd from sequence then save to postgres
-              //SAVE TO ES
-              //context.makeRDD(infMetrics.toArray()).saveToEs(brasCountIndex + "/" + brasCountType)
-              //sc.makeRDD(infMetrics.toArray()).saveToEs(brasCountIndex + "/" + brasCountType)
-
-              //println(result.statusLine)
-            }
-
-          // SAVE Aggregated log to MONGO.
-          /*infCount.write.mode(SaveMode.Append)
-            .mongo(WriteConfig(Map("collection"->"connlog_inf_count"),Some(WriteConfig(context))))*/
-          // SAVE Aggreagated result to Postgres
-          //PostgresIO.writeToPostgres(ss,infCountPivot,bJdbcURL.value,"inf_count",SaveMode.Append,bPgProperties.value)
         }*/
+        //TODO : End
 
+        // OLD VERSION 1.0
+        /*val infMetrics = new util.ArrayList[InfCountObject]()
+        infCountPivot.rdd.foreachPartition { partition =>
+          if(partition.hasNext) {
+            val arrayListType = new TypeToken[java.util.ArrayList[InfCountObject]]() {}.getType
+            val gson = new Gson()
+            partition.foreach { row =>
+              val infCount = new InfCountObject(
+                row.getAs[String]("host"),
+                row.getAs[Long]("signin_total_count").toInt,
+                row.getAs[Long]("logoff_total_count").toInt,
+                row.getAs[Long]("signin_distinct_count").toInt,
+                row.getAs[Long]("logoff_distinct_count").toInt,
+                row.getAs[Timestamp]("time")
+              )
+              infMetrics.add(infCount)
+            }
+            val infMetricsJson = gson.toJson(infMetrics, arrayListType)
+            val infHttp = Http(bUrlBrasCount.value).proxy(powerBIConfig("proxy_host"),80)
+            val infResult = infHttp.postData(infMetricsJson)
+              .header("Content-Type", "application/json")
+              .header("Charset", "UTF-8")
+              .option(HttpOptions.readTimeout(10000)).asString
+            logger.info(s"Send INF metrics to PowerBi - Statuscode : ${infResult.statusLine}.")
 
+            // Named the index
+            //val brasCountIndex = "count_by_inf-" +today+ Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            //sval brasCountType = "inf_count"
+
+            // Make rdd from sequence then save to postgres
+            //SAVE TO ES
+            //context.makeRDD(infMetrics.toArray()).saveToEs(brasCountIndex + "/" + brasCountType)
+            //sc.makeRDD(infMetrics.toArray()).saveToEs(brasCountIndex + "/" + brasCountType)
+
+            //println(result.statusLine)
+          }
+
+        // SAVE Aggregated log to MONGO.
+        /*infCount.write.mode(SaveMode.Append)
+          .mongo(WriteConfig(Map("collection"->"connlog_inf_count"),Some(WriteConfig(context))))*/
+        // SAVE Aggreagated result to Postgres
+        //PostgresIO.writeToPostgres(ss,infCountPivot,bJdbcURL.value,"inf_count",SaveMode.Append,bPgProperties.value)
       }*/
-        brasInfo.unpersist()
-        brasCount.unpersist()
-        brasCountPivot.unpersist()
-        //infCountPivot.unpersist()
 
 
+    }*/
+      //infCountPivot.unpersist()
+      brasCount.unpersist()
+      brasCountPivot.unpersist()
     })
+
   }
 
 
@@ -824,6 +843,10 @@ object ParseAndCountConnLog {
     nowFormeted
   }
   def skipEmptyWordCount = (streams : RDD[(String,Int)]) => streams.filter(wordCount => wordCount._2 > 0)
+
+  def removeRject = (streams: RDD[ConnLogLineObject]) => streams.filter(line => line.connect_type != ConnectTypeEnum.Reject.toString)
+
+
 
 
 
