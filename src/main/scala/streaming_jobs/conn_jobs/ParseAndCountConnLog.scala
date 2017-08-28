@@ -161,7 +161,7 @@ object ParseAndCountConnLog {
       case _ => println("Ignore !")
     }
 
-    val brasInfo = objectConnLogs.transform(removeRject).cache()
+    val brasInfoDStream: DStream[ConnLogLineObject] = objectConnLogs.transform(removeRject).cache()
 
     //Sorry, it was 7PM, i was too lazy to code. so i did too much hard code here :)).
     /*val connType = objectConnLogs
@@ -241,7 +241,7 @@ object ParseAndCountConnLog {
         //MongoSpark.save(data.write.option("collection","collectionName").mode("overwrite"))
     }*/
 
-    brasInfo.foreachRDD({
+    brasInfoDStream.foreachRDD({
       (rdd: RDD[ConnLogLineObject],time_ : Time) =>
         // Get sparkContext from rdd
         ///val context = rdd.sparkContext
@@ -457,7 +457,7 @@ object ParseAndCountConnLog {
 
     })
 
-    brasInfo.window(bWindowDuration.value,bSlideDuration.value).foreachRDD({batch =>
+    brasInfoDStream.window(bWindowDuration.value,bSlideDuration.value).foreachRDD({batch =>
       val brasInfo = batch.toDF("time","session_id","connect_type","name","content1","line","card","port","olt","portpon","macadd","vlan","serialonu")
         .cache()
       brasInfo.createOrReplaceTempView("bras_info")
@@ -813,6 +813,7 @@ object ParseAndCountConnLog {
       //infCountPivot.unpersist()
       brasCount.unpersist()
       brasCountPivot.unpersist()
+      brasInfo.unpersist()
     })
 
   }
