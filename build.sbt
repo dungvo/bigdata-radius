@@ -83,7 +83,9 @@ lazy val root = (project in file("."))
       twitterBijection,
       gson,
       scalajHttp,
-      "net.debasishg" % "redisclient_2.10" % "2.11"
+      //"RedisLabs" % "spark-redis" % "0.3.2"
+      //"net.debasishg" % "redisclient_2.10" % "2.11",
+      "net.debasishg" %% "redisclient" % "3.4"
       )
 )
 

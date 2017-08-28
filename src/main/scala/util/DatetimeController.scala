@@ -50,27 +50,54 @@ object DatetimeController extends Serializable{
     val ms = sdf.parse(s).getTime()
     ms
   }
-  private[this] def stringWithTimeZoneToSqlTimestamp(string: String): Timestamp ={
+
+  def stringWithTimeZoneToSqlTimestamp(string: String): Timestamp ={
     val date: DateTime = DateTime.parse(string,DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZZ") )
     val timstamp = new Timestamp(date.getMillis)
     timstamp
   }
 
-  private[this] def stringToSqlTimestamp(string: String): Timestamp ={
+ def stringToSqlTimestamp(string: String): Timestamp ={
     val date: DateTime = DateTime.parse(string,DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss.SSS") )
     val timstamp = new Timestamp(date.getMillis)
     timstamp
   }
 
-  private[this] def stringToLong(s: String): Long = {
+ def stringToLong(s: String): Long = {
     val sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
     val ms = sdf.parse(s).getTime()
     ms
   }
 
+ def  stringWithTimeZoneToSqlTimestamp(string: String,pattern: String): String ={
+   val parsed = DatetimeController.stringWithTimeZoneToSqlTimestamp(string)
+   val result = new SimpleDateFormat("yyyy-MM-dd HH:mm").format(parsed)
+   result
+ }
+
+  def  stringWithTimeZoneToSqlTimestamp(string: String,formater: SimpleDateFormat): String ={
+    val parsed = DatetimeController.stringWithTimeZoneToSqlTimestamp(string)
+    val result = formater.format(parsed)
+    result
+  }
+
+
 }
 object DateTimeTest{
   def main(args: Array[String]): Unit = {
-    println(" : " + DatetimeController.sqlTimeStampToNumberFormat(new Timestamp(2017,6,30,8,22,32,11)))
+    val string = "2017-08-28T14:56:59.000+07:00"
+
+
+    val result = string.substring(0,16).replace("T"," ")
+    println(result)
+    val parsed = DatetimeController.stringWithTimeZoneToSqlTimestamp(string)
+
+    val date: DateTime = DateTime.parse(string,DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZZ") )
+    println(date)
+
+
+
+
+    //println (new SimpleDateFormat("yyyy-MM-dd HH:mm").format(parsed))
   }
 }

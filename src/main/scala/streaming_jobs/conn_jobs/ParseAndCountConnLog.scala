@@ -25,7 +25,7 @@ import org.apache.spark.sql.functions._
 import scalaj.http.{Http, HttpOptions}
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import core.KafkaProducerFactory
+import core.{KafkaProducerFactory, RedisClientFactory}
 import core.sinks.KafkaDStreamSinkExceptionHandler
 import org.apache.spark.sql.expressions.Window
 
@@ -73,7 +73,6 @@ object ParseAndCountConnLog {
 
     val sc = ssc.sparkContext
     //val mc = new MapAccumulator()
-
     val bWindowDuration = DurationBoadcast.getInstance(sc,windowDuration)
     val bSlideDuration  = DurationBoadcast.getInstance(sc,slideDuration)
     val bConLogParser   = ParserBoacast.getInstance(sc,conLogParser)
@@ -255,8 +254,23 @@ object ParseAndCountConnLog {
         /////////////////////////////////////// BRAS ////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////////////////////////////////
         //Deal with time. minutes.
-        val logOff = rdd.map{ ob => ((ob.content1,ob.time),ob.name)}.groupByKey().map(x => (x._1,x._2.toSet.mkString(",")))
+        val logOff = rdd.filter(x => x.connect_type == ConnectTypeEnum.LogOff.toString)
+                        .map{ ob => ((ob.content1,ob.time.substring(0,16).replace("T"," ")),ob.name)}
+                        .groupByKey().map(x => (x._1,x._2.toSet.toList))
         //Save logOff to Redis
+        logOff.foreachPartition{
+          partition =>
+            partition.foreach{tuple =>
+              val clients = RedisClientFactory.getOrCreateClient(("172.27.11.141", 6373))
+              clients.withClient{client =>
+                // Key : Brasid-time - Value : List
+                tuple._2.foreach(client.lpush(tuple._1._1+ "-"+tuple._1._2,_))
+                //client.lpush(tuple._1,tuple._2)
+                client.expire(tuple._1,300)
+              }
+            }
+
+        }
 
 
 
@@ -428,12 +442,6 @@ object ParseAndCountConnLog {
           case e: Exception => System.err.println("UncatchException occur when save bras_count_by_line : " +  e.getMessage)
           case _ => println("Ignore !")
         }
-
-
-
-        val logOffUser =  brasInfo.select ("")
-
-
 
         // UNPERSIT
         brasCountByLine.unpersist()
