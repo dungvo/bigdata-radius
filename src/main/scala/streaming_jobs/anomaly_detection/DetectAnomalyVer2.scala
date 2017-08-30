@@ -1,6 +1,8 @@
 package streaming_jobs.anomaly_detection
 
+import java.io.Serializable
 import java.sql.{Connection, DriverManager, PreparedStatement, SQLException, Timestamp}
+import java.text.SimpleDateFormat
 
 import core.udafs.{MovingMedian, UpperIQR}
 import org.apache.log4j.Logger
@@ -23,11 +25,14 @@ import util.DatetimeController
 
 import scala.concurrent.duration.FiniteDuration
 import java.util
-import java.util.Properties
+import java.util.{Calendar, Date, Properties}
 
 import com.mongodb.spark.MongoSpark
 import com.mongodb.spark.config.WriteConfig
 import com.mongodb.spark.sql._
+import com.redis.RedisClient
+import core.streaming.RedisClientFactory
+import org.apache.spark.rdd.RDD
 import storage.postgres.PostgresIO
 
 /**
@@ -115,7 +120,7 @@ object DetectAnomalyVer2 {
 
 
 
-        println(getBrasDetailQuery)
+        //println(getBrasDetailQuery)
         //Push down to db. server side join.
         val brasCounDFRaw = PostgresIO.pushDownQuery(ss, bJdbcURL.value, getBrasDetailQuery, bPgProperties.value)
                 // Rank by time
@@ -184,7 +189,7 @@ object DetectAnomalyVer2 {
         //val theshold = spark.sql(s"Select * from bras_theshold WHERE bras_id IN $brasIdsString").cache()
         // Postgres version:
         val thesholdQuery = s"( Select * from threshold WHERE bras_id IN $brasIdsString ) as bhm "
-        println("thresholdQuery " + thesholdQuery)
+        //println("thresholdQuery " + thesholdQuery)
 
         val theshold = PostgresIO.pushDownQuery(ss, bJdbcURL.value,thesholdQuery,
           bPgProperties.value).cache()
@@ -201,15 +206,22 @@ object DetectAnomalyVer2 {
           .select("bras_id", "signin_total_count", "logoff_total_count", "rateSL", "rateLS", "time","signin_distinct_count","logoff_distinct_count")
           .where(($"signin_total_count" >= $"threshold_signin" && $"signin_total_count" > lit(30)) || ($"logoff_total_count" >= $"threshold_logoff" && $"logoff_total_count" > lit(30)))
         //// Remove after test:
-        result3tmp.cache()
+        //result3tmp.cache()
         if(result3tmp.count() > 0){
           val bras_result3_ids_df = result3tmp.select("bras_id").cache()
-          val bras_result3_ids = bras_result3_ids_df.rdd.map(r => r(0)).collect()
+
+          ///
+          // Get brasresult3_ids and save to postgres
+          // create table :
+          //
+          ///
+
+
           val outlier_with_status = bras_result3_ids_df.withColumn("label", sqlAlwaysOutlier(col("bras_id")))
           bras_result3_ids_df.unpersist()
           val savedToDB_DF = newestBras.join(outlier_with_status, Seq("bras_id"), "left_outer").na.fill("normal").withColumnRenamed("time","date_time")
           println("SAVE TO DB detail 2")
-          savedToDB_DF.show(10)
+          //savedToDB_DF.show(10)
           try {
             // TODO change to upsert.
             //PostgresIO.writeToPostgres(ss, savedToDB_DF, bJdbcURL.value, "dwh_radius_bras_detail", SaveMode.Append, bPgProperties.value)
@@ -572,13 +584,75 @@ object DetectAnomalyVer2 {
         //TODO VERSION 3:
         // Start date 01-08-2017
         if (result3.count > 0) {
+          ///////////// User LogOff
+          //
+          val bras_result3_ids_outlier_df = result3.select("bras_id")
+          val bras_result3_ids_outlier: RDD[String] = bras_result3_ids_outlier_df.rdd.map(r => r(0).toString)
+          //val bras_result3_ids: Array[Any] = bras_result3_ids_outlier_df.rdd.map(r => r(0)).collect()
+          //val redis = RedisClientFactory.getOrCreateClient("172.27.11.141",6373)
+
+          bras_result3_ids_outlier.foreachPartition { part =>
+            //val r = new RedisClient("172.27.11.141", 6373)
+            val clients = RedisClientFactory.getOrCreateClient(("172.27.11.141", 6373))
+            clients.withClient{client =>
+              val iter = part.map{ bras =>
+                //Current time
+                val key = getRedisKey(bras,0)
+                // Current time minus 1,2,3 minute
+                val keyMinusOne = getRedisKey(bras,-1)
+                val keyMinusTwo = getRedisKey(bras,-2)
+                val keyMinusThree = getRedisKey(bras,-3)
+                val time = getCurrentTime()
+                //val list = r.lrange(key,0,-1)
+                val list = client.lrange(key,0,-1)
+                val list1 = client.lrange(keyMinusOne,0,-1)
+                val list2 = client.lrange(keyMinusTwo,0,-1)
+                val list3 = client.lrange(keyMinusThree,0,-1)
+
+                val finalList :List[Option[String]] = list.getOrElse(List(None)):::list1.getOrElse(List(None)):::list2.getOrElse(List(None)):::list3.getOrElse(List(None))
+
+                (key,bras,time,finalList.flatten.mkString(","))
+              }
+              /* val rdd = sc.parallelize(iter.toSeq)
+               val logoutUserDF = rdd.toDF("key","bras_id","time","users_list")
+               logoutUserDF.show*/
+              //val sql = s"INSERT INTO logoff_users(key,bras_id,time,user_list) values()"
+              try{
+                val conn: Connection = DriverManager.getConnection(bJdbcURL.value)
+                val preparedStatement = conn.prepareStatement(" INSERT INTO logoff_users(event_key,bras_id,time,user_list) values(?, ?, ?, ?) ;")
+
+                iter.foreach{
+                  tuple =>
+
+                    //DEBUG:
+                    //println(tuple)
+                    //
+                    preparedStatement.setString(1,tuple._1)
+                    preparedStatement.setString(2,tuple._2)
+                    preparedStatement.setTimestamp(3,tuple._3)
+                    preparedStatement.setString(4,tuple._4)
+                    preparedStatement.addBatch()
+                }
+                preparedStatement.executeBatch()
+                conn.close()
+                logger.info(s"Save batch ${part.toString()} successfully")
+              }catch {
+                case e: SQLException => println("Error when saving data to pg logoff_users " + e.getMessage + e.getMessage + e.getStackTrace)
+                case e: Exception => println("Uncatched - Error when saving data to pg logoff_users  " + e.getMessage + e.getStackTrace)
+                case _ => println("Dont care :))")
+              }
+
+            }
+          }
+
+
           val bras_result3_ids_df = result3.select("bras_id","active_user").cache()
           val bras_result3_ids = bras_result3_ids_df.rdd.map(r => r(0)).collect()
           val outlier_with_status = bras_result3_ids_df.withColumn("label", sqlAlwaysOutlier(col("bras_id")))
           bras_result3_ids_df.unpersist()
           val savedToDB_DF = newestBras.join(outlier_with_status, Seq("bras_id"), "left_outer").na.fill("normal").withColumnRenamed("time","date_time")
-          println("SAVE TO DB")
-          savedToDB_DF.show(10)
+          //println("SAVE TO DB")
+          //savedToDB_DF.show(10)
           try {
             // TODO change to upsert.
             //PostgresIO.writeToPostgres(ss, savedToDB_DF, bJdbcURL.value, "dwh_radius_bras_detail", SaveMode.Append, bPgProperties.value)
@@ -620,7 +694,7 @@ object DetectAnomalyVer2 {
                 outlier
               } catch {
                 case e: Exception => {
-                  println("ERROR IN PARSING BLOCK + " + e.printStackTrace() + " " + e.getMessage +  " " + row.toString());
+                  println("ERROR IN PARSING BLOCK + " + e.printStackTrace() + " " + e.getMessage +  " " + row.toString())
                   BrasCoutOutlier("n/a", 0, 0, new Timestamp(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
                 }
                 //case _: Throwable => println("Throwable ")
@@ -658,8 +732,8 @@ object DetectAnomalyVer2 {
         }else{
           val savedToDB_DF = newestBras.join(active_user,Seq("bras_id"), "left_outer")
             .withColumn("label", sqlAlwaysNormal(col("bras_id"))).withColumnRenamed("time","date_time")
-          println("SAVE TO DB")
-          savedToDB_DF.show(10)
+          //println("SAVE TO DB")
+          //savedToDB_DF.show(10)
           try {
             //Upsert to postgres :
             upsertDetailToPostgres(ss,savedToDB_DF,bJdbcURL.value)
@@ -834,7 +908,30 @@ object DetectAnomalyVer2 {
         logger.info(s"Save batch ${batch.toString()} successfully")
       }
   }
+  def getRedisKey(brasName: String,timeMinus: Int): String = {
+    val key = brasName + "-" + getCurrentStringTime(timeMinus)
+    key
+  }
+  def getCurrentStringTime(minus: Int):String ={
+    val now = Calendar.getInstance().getTimeInMillis
+    val target: Date = new Date(now + minus*60000)
+    val nowFormater = new SimpleDateFormat("yyyy-MM-dd HH:mm")
+    val nowFormeted: String = nowFormater.format(target)
+    //val nowFormeted = nowFormater.format(now).toString
+    nowFormeted
+  }
+  def getCurrentStringTime():String ={
+    val now: Date = Calendar.getInstance().getTime
+    val nowFormater = new SimpleDateFormat("yyyy-MM-dd HH:mm")
+    val nowFormeted: String = nowFormater.format(now)
+    //val nowFormeted = nowFormater.format(now).toString
+    nowFormeted
+  }
 
+  def getCurrentTime() :java.sql.Timestamp ={
+    val timestamp = new Timestamp(System.currentTimeMillis())
+    timestamp
+  }
 }
 
 case class BrasCountObject(
@@ -868,5 +965,16 @@ object testTime {
     val now = System.currentTimeMillis()
     val time = new org.joda.time.DateTime(now).minusHours(7).minusMinutes(2).toString("yyyy-MM-dd HH:mm:ss.SSSZ")
     println(time)
+
+
+    val minusOne = DetectAnomalyVer2.getCurrentStringTime(-2)
+    println(minusOne)
+
+
+    val a = List(Some("a"))
+    val b = List(Some("b"))
+    val c = List(Some("c"),Some("c"))
+    val d = a:::b:::c
+    println(d.flatten)
   }
 }

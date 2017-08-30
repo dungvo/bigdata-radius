@@ -195,6 +195,7 @@ CREATE TABLE IF NOT EXISTS bras_name_ip_mapping(
     bras_ip varchar(15),
     PRIMARY KEY(bras_id)
 );
+CREATE TABLE IF NOT EXISTS logoff_users(event_key varchar(50),bras_id varchar(30),time timestamp,user_list text);
 
         
 insert  into  test_table1  (col2,...,  coln)  select  col2,...,coln  from  table1;

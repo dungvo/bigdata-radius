@@ -16,7 +16,7 @@ import org.apache.spark.{Accumulable, SparkConf, SparkContext, TaskContext}
 import org.apache.spark.sql._
 import parser.{AbtractLogLine, ConnLogLineObject, ConnLogParser}
 import com.datastax.spark.connector.streaming._
-import core.streaming.SparkSessionSingleton
+import core.streaming.{RedisClientFactory, SparkSessionSingleton}
 import com.mongodb.spark.MongoSpark
 import com.mongodb.spark.config.WriteConfig
 import com.mongodb.spark.sql._
@@ -25,7 +25,8 @@ import org.apache.spark.sql.functions._
 import scalaj.http.{Http, HttpOptions}
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import core.{KafkaProducerFactory, RedisClientFactory}
+import com.redis.RedisClientPool
+import core.KafkaProducerFactory
 import core.sinks.KafkaDStreamSinkExceptionHandler
 import org.apache.spark.sql.expressions.Window
 
@@ -260,8 +261,10 @@ object ParseAndCountConnLog {
         //Save logOff to Redis
         logOff.foreachPartition{
           partition =>
+            //val clients = new RedisClientPool("172.27.11.141",6373)
+            val clients = RedisClientFactory.getOrCreateClient(("172.27.11.141", 6373))
             partition.foreach{tuple =>
-              val clients = RedisClientFactory.getOrCreateClient(("172.27.11.141", 6373))
+
               clients.withClient{client =>
                 // Key : Brasid-time - Value : List
                 tuple._2.foreach(client.lpush(tuple._1._1+ "-"+tuple._1._2,_))
@@ -332,8 +335,8 @@ object ParseAndCountConnLog {
 
         brasAndHost.unpersist()
 
-
-       /* val timeFunc: (AnyRef => String) = (arg: AnyRef) => {
+/*
+        val timeFunc: (AnyRef => String) = (arg: AnyRef) => {
           getCurrentTime()
         }
         val sqlTimeFunc = udf(timeFunc)*/
@@ -449,8 +452,6 @@ object ParseAndCountConnLog {
         brasCountByPort.unpersist()
 
         //////////////////////////// Bras ///////////////////////////////////////
-
-
         brasInfo.unpersist()
 
 

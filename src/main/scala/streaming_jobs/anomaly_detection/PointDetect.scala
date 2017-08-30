@@ -53,6 +53,8 @@ class PointDetect(config: PointDetectConfig,source: KafkaDStreamSource) extends 
              pushdown "true")"""
 
         val createDLL_noc_bras_error_counting  =
+
+
           """CREATE TEMPORARY VIEW noc_bras_error_counting
              USING org.apache.spark.sql.cassandra
              OPTIONS (
@@ -89,7 +91,9 @@ class PointDetect(config: PointDetectConfig,source: KafkaDStreamSource) extends 
 object PointDetecExe{
   def main(args: Array[String]): Unit = {
     core.streaming.SparkLogLevel.setStreamingLogLevels()
-
+    println("----- ----------------------------- -----")
+    println("----- I let my heart decide the way -----")
+    println("----- ----------------------------- -----")
     val config = PointDetectConfig()
     val pointDetect = new PointDetect(config,KafkaDStreamSource(config.sourceKafka))
     pointDetect.detect()

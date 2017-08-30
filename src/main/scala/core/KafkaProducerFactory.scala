@@ -42,26 +42,3 @@ object KafkaProducerFactory {
 }
 
 
-object RedisClientFactory{
-  import scala.collection.JavaConversions._
-  private val logger = Logger.getLogger(getClass)
-
-  private val producers = mutable.HashMap.empty[(String,Int), RedisClientPool]
-
-  def getOrCreateClient(config: (String,Int)): RedisClientPool = {
-
-    //Should remove this config
-
-
-    producers.getOrElseUpdate(config,{
-      logger.info(s"Create Redis Connection Pool , config: $config")
-      val producer = new RedisClientPool(config._1,config._2)
-      producers(config) = producer
-      sys.addShutdownHook{
-        logger.info(s"Close Redis Connection Pool , config: $config")
-        producer.close
-      }
-      producer
-    }).asInstanceOf[RedisClientPool]
-  }
-}

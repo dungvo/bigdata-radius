@@ -2,7 +2,7 @@ package test
 
 import org.apache.spark.sql.SparkSession
 import com.redis._
-import core.RedisClientFactory
+import core.streaming.RedisClientFactory
 import org.apache.log4j.{Level, Logger}
 
 /**
@@ -60,10 +60,10 @@ object RedisClientTest2 {
        val r = new RedisClient("172.27.11.141", 6373)
         //r.set("key","some value")
 
-        val result = r.lrange("HNI-MP-01-02-2017-08-28 15:45",0,-1)
-        println(result.get.flatten)
-        //val keys = r.scan(0, "*", 10)
-        //keys.foreach(println(_))
+        //val result = r.lrange("HNI-MP-01-02-2017-08-28 15:45",0,-1)
+        //println(result.get.flatten)
+        val keys = r.scan(0, "*", 100)
+        keys.foreach(println(_))
 
 
     //val clients = RedisClientFactory.getOrCreateClient(("172.27.11.141", 6373))

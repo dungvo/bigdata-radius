@@ -1,5 +1,6 @@
 package test
 
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.SparkSession
 
 /**
@@ -7,6 +8,9 @@ import org.apache.spark.sql.SparkSession
   */
 object DataFrameTest {
   def main(args: Array[String]): Unit = {
+
+    Logger.getLogger("akka").setLevel(Level.OFF)
+    Logger.getLogger("org").setLevel(Level.OFF)
     val sparkSession = SparkSession.builder().appName("test").master("local").getOrCreate()
     val sc = sparkSession.sparkContext
     import sparkSession.implicits._
@@ -16,5 +20,11 @@ object DataFrameTest {
     val resutl = sparkSession.sql("SELECT *,split(port, '/')[0] as part1, split(port, '/')[1] as part2 FROM count")
     resutl.show()
 
+    val bras_result3_ids: Array[Any] = resutl.select("port").rdd.map(r => r(0)).collect()
+    bras_result3_ids.toList.foreach(println(_))
+
+    import org.apache.spark.sql.functions._
+    val timeTest = resutl.withColumn("time",lit(current_timestamp()))
+    timeTest.show
   }
 }
