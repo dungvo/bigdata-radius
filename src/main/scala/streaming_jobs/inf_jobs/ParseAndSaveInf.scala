@@ -67,7 +67,8 @@ object ParseAndSaveInf {
       // Tip 2 : do not declare variable.
 
       //objectConnLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius-connlog_new","type" -> "connlog"))
-      lines.persistToStorage(Predef.Map[String,String]("index" -> ("inf-" + org.joda.time.DateTime.now().toString("yyyy-MM-dd")),"type" -> "inf_erro"))
+      lines.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "inf" ,"type" -> "inf_erro"))
+      //lines.persistToStorage(Predef.Map[String,String]("index" -> ("inf-" + org.joda.time.DateTime.now().toString("yyyy-MM-dd_HH:mm:ss")),"type" -> "inf_erro"))
       //objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-test-" + today),"type" -> "connlog"))
     } catch {
         case e: Exception => System.err.println("UncatchException occur when save inf log to ES : " +  e.getMessage)

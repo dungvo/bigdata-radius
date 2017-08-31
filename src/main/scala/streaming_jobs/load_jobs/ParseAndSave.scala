@@ -35,7 +35,15 @@ object ParseAndSave {
     val bLoadLogParser = LoadLogBroadcast.getInstance(sc,loadLogParser)
     val objectLoadLogs: DStream[LoadLogLineObject] = lines.transform(extractValue(bLoadLogParser))
 
-    objectLoadLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius_load","type" -> "loadLog"))
+    try{
+      objectLoadLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius_load","type" -> "loadLog"))
+    }catch {
+      case e: Exception => System.err.println("Uncatched Exception occur when save load log to ES : " +  e.getMessage)
+      case _ => println("Ignore !")
+    }
+
+
+
     //DEBUG
     /*lines.foreachRDD{
 
