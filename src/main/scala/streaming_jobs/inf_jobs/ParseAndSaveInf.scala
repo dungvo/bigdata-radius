@@ -179,13 +179,13 @@ object ParseAndSaveInf {
         //println("Time : " + time + "rdd - id" + rdd.id)
         //TODO : Save To Postgres.
 
-      /*  try{
+        try{
           PostgresIO.writeToPostgres(ss, result_inf_tmp, bJdbcURL.value, "result_inf_tmp", SaveMode.Overwrite, bPgProperties.value)
         }catch{
           case e: SQLException => System.err.println("SQLException occur when save result_inf_tmp" + e.getSQLState + " " + e.getMessage)
           case e: Exception => System.err.println("UncatchException occur when save result_inf_tmp: " +  e.getMessage)
           case _ => println("Ignore !")
-        }*/
+        }
 
         val host_endpoint_id_df = result_inf_tmp.select("host_endpoint")
         host_endpoint_id_df.show()

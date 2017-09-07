@@ -92,11 +92,12 @@ object ParseOpsviewTest{
     val op2 = "[1501489197] SERVICE ALERT: INF-HN9-HNIP48801DF24-20.14.8.26;check_sw_cpu_dasan;OK;HARD;2;OK: CPU 5%"
     val op3 = "[1501489197] SERVICE ALERT: INF-HPG-HPGP02302GC57-10.10.219.124;Check_olt_cpu;OK;HARD;1;OK: CPU Idle 79%"
     val op4 = "[1501489197] SERVICE ALERT: Test-HNIM00201HW12-10.10.83.20;check_interface_huawei_new: 31;OK;SOFT;2;OK: 10GE3/0/21 DWL-CE102002HNIP29701HW24-X1/0/1, UP, throughput (in/out) 78.36/2372.28 Mbps, speed 10000"
+    val op5 = "[1504130786] SERVICE ALERT: Pon-alert;Pon-alert: LinkDown;CRITICAL;HARD;3;CRITICAL: message:(\"LinkDown\")2017-08-31T05:01:55.163000Z- HPGP07302GC57(20.101.25.2)-  <131>0000124197: Aug 31 04:59:40: HPGP07302GC57: %DEVICE-3-LINKUPDOWN: p0/8 LinkDown."
     val parser = new OpsviewParser
     println(parser.extracValues(op1.trim))
     println(parser.extracValues(op2.trim))
     println(parser.extracValues(op3.trim))
-    println(parser.extracValues(op4.trim))
+    println(parser.extracValues(op5.trim))
 
      val text = "(.*)"
      //val text = "[([a-zA-Z0-9]+)]"

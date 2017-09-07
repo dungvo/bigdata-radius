@@ -205,10 +205,45 @@ insert  into  inserttest(bras_id,olt,portpon,time)
         select  b.bras_id,  bh.olt,  bh.portPON,b.time  
         from  bras  b  join  brashostmapping  bh  on  b.bras_id  =  bh.bras_id  ;
 
-
+CREATE TABLE linecard_ol (bras_id varchar(30) PRIMARY KEY NOT NULL, line_ol_list varchar(100),card_ol_list varchar(100)) ;
 
 sudo docker network create -d bridge --subnet 172.30.41.0/24 --gateway 171.30.41.1 docke
 FROM php:7.0-apache
 RUN mkdir -p /var/www/html/bigdata_noc
 COPY . /var/www/html/bigdata_noc/
 WORKDIR /var/www/html/bigdata_noc
+
+
+
+create index dwh_inf_index_by_time ON dwh_inf_index((date_time::DATE));
+SELECT * FROM pg_indexes WHERE tablename = 'table_name';
+
+
+
+SELECT C.bras_id,card_ol_list,line_ol_list FROM
+(select bras_id, string_agg(card_ol, ',') AS card_ol_list from (select distinct(card_ol),bras_id from bras_count_by_card ORDER BY card_ol) as T GROUP BY bras_id ) AS C JOIN
+
+(select bras_id, string_agg(line_ol, ',') AS line_ol_list from (select distinct(line_ol),bras_id from bras_count_by_card ORDER BY line_ol) as P GROUP BY bras_id ) AS L ON C.bras_id = L.bras_id;
+
+
+SELECT DISTINCT
+  (card_ol), bras_id,
+  ROW_NUMBER() OVER (window) row_number
+FROM t
+WINDOW window AS (ORDER BY card_ol)
+ORDER BY card_ol, row_number;
+
+
+
+
+SELECT DISTINCT
+  (card_ol), bras_id,
+  ROW_NUMBER() OVER (PARITITION BY bras_id) row_number
+FROM
+ORDER BY card_ol, row_number;
+
+
+select distinct(card_ol),bras_id, Max(card_ol) over (PARTITION by bras_id)from bras_count_by_card ORDER BY card_ol;
+
+
+select bras_id, string_agg(card_ol, ',') AS card_ol_list from (select distinct(card_ol),bras_id, Max(card_ol) over (PARTITION by bras_id order by card_ol)from bras_count_by_card ) as T GROUP BY bras_id;

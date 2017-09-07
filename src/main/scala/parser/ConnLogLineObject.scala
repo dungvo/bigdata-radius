@@ -54,6 +54,11 @@ object ConnLogLineObject
   private val macAddStandard = "(\\w{2}:\\w{2}:\\w{2}:\\w{2}:\\w{2}:\\w{2})"
   private val macAdd = "(\\w{12})"
   private val extension = s"xe-$interface.$subInterface:$vlanL3#$olt PON $portPON $macAdd $vlan $serialONU$text".r
+  // New format since 2017=09-08
+  // Missing Mac address or atm .
+  private val extension_atm = s"xe-$interface.$subInterface:$vlanL3#$olt $text".r
+
+
   //private val extensionTest = s"xe-$interface.$subInterface:$vlanL3#$olt $text".r
   private val extensionTest = s"xe-$interface.$subInterface:$vlanL3$text".r
   private val oltReg  = s"#$olt".r
@@ -103,6 +108,14 @@ object ConnLogLineObject
         val port = content1 + "/"  + interface
         (line,card,port,olt,portPON,macAdd,vlan,serialONU)
       }
+      case extension_atm(interface,subInt,vlanL3,olt,text) => {
+        val arr: Array[String] = interface.split("/")
+
+        val line = content1 + "/" + arr(0)
+        val card = content1 + "/" + arr(0) + "/" + arr(1)
+        val port = content1 + "/"  + interface
+        (line,card,port,olt,"n/a","n/a","n/a","n/a")
+      }
       case _ => ("n/a","n/a","n/a","n/a","n/a","n/a","n/a","n/a")
     }
   }
@@ -134,11 +147,15 @@ object ConnLogLineObject
     val ex2 = "xe-5/3/0.3116:3116#HNIP08001GC57 PON 0/4/96 a858403b2d2e 3116 FPTT15c0fe1c, 3ED5A7F9"
     val ex3 = "xe-1/2/0.713:713#TNNP04701GC57 PON 0/1/5 70d931655686 713 CIGGf3157865, 74B5D444"
     val ex4 = "xe-8/0/1.3418:3418#HNIP51602GC57 PON 0/5/104 a8584001b86e 3418 CIGGf4601075, 7FC3E9E5"
+    val ex5 = "xe-4/0/0.1204:1204#HUEP07901GC56 PON 0/7/24  1204, 400004B4"
+    val ex6 = "xe-3/2/1.1029:1029#HUEP02901ES60 atm 7/35:0.33:1029"
     println(parserExtensionLog(ex1,"MX480"))
+    println(parserExtensionLog(ex5,"MX480"))
+    println(parserExtensionLog(ex6,"MX480"))
 
     println(test(ex1))
-    println(test(ex2))
-    println(test(ex3))
+    println(test(ex5))
+    println(test(ex6))
 
     val oltTest = "#HNIP20201GC57"
 

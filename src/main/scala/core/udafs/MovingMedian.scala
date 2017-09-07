@@ -76,7 +76,7 @@ class String_AGG extends org.apache.spark.sql.expressions.UserDefinedAggregateFu
   }
 
   def evaluate(buffer: org.apache.spark.sql.Row): Any = {
-    var stringsSeq = buffer.getAs[scala.collection.mutable.WrappedArray[String]](0).toBuffer
+    var stringsSeq = buffer.getAs[scala.collection.mutable.WrappedArray[String]](0).toBuffer.sorted
     stringsSeq.mkString(",")
 
   }

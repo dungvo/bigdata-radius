@@ -243,8 +243,8 @@ object ParseAndCountConnLog {
         //@since 2017-03-22
         //MongoSpark.save(data.write.option("collection","collectionName").mode("overwrite"))
     }*/
-
-    brasInfoDStream.foreachRDD({
+    // Old method, Now we move it to same meachanism.
+    /*brasInfoDStream.foreachRDD({
       (rdd: RDD[ConnLogLineObject],time_ : Time) =>
         // Get sparkContext from rdd
         ///val context = rdd.sparkContext
@@ -458,12 +458,209 @@ object ParseAndCountConnLog {
 
 
 
-    })
+    })*/
 
     brasInfoDStream.window(bWindowDuration.value,bSlideDuration.value).foreachRDD({batch =>
+
+
+
+      val logOff = batch.filter(x => x.connect_type == ConnectTypeEnum.LogOff.toString)
+        .map{ ob => ((ob.content1,ob.time.substring(0,16).replace("T"," ")),ob.name)}
+        .groupByKey().map(x => (x._1,x._2.toSet.toList))
+      //Save logOff to Redis
+      logOff.foreachPartition{
+        partition =>
+          //val clients = new RedisClientPool("172.27.11.141",6373)
+          val clients = RedisClientFactory.getOrCreateClient(("172.27.11.141", 6373))
+          partition.foreach{tuple =>
+
+            clients.withClient{client =>
+              // Key : Brasid-time - Value : List
+              tuple._2.foreach(client.lpush(tuple._1._1+ "-"+tuple._1._2,_))
+              //client.lpush(tuple._1,tuple._2)
+              client.expire(tuple._1,300)
+            }
+          }
+
+      }
+
       val brasInfo = batch.toDF("time","session_id","connect_type","name","content1","line","card","port","olt","portpon","macadd","vlan","serialonu")
         .cache()
+
       brasInfo.createOrReplaceTempView("bras_info")
+      //TODO : Mapping hostname -brastogether.
+      // Select name and BrasName where connect type == signin
+      val brasAndHost: DataFrame = ss.sql("SELECT content1 , olt , portpon , CONCAT(olt,'/',portpon) as host_endpoint FROM bras_info").where(col("connect_type") === "SignIn")
+        .filter("host_endpoint != 'n/a/n/a'")
+        //.withColumn("host",sqlLookup(col("name")))
+        .withColumnRenamed("content1","bras_id")
+        .dropDuplicates("host_endpoint")
+
+      //Save to cassandra -- table - keyspace - cluster.
+      //println(" BRAS AND HOST")
+      //brasAndHost.show()
+      //TODO : HARDCODE !!!!!! CASSANDRA
+      //brasAndHost.write.mode("append").cassandraFormat("brashostmapping","radius","test").save()
+      //TODO : Migrate to Postgres.
+      //TODO Code Upsert function
+      // Append only will be cause of conflict.
+
+      try{
+        // @depricate
+        //PostgresIO.writeToPostgres(ss, brasAndHost, bJdbcURL.value, "brashostmapping", SaveMode.Overwrite, bPgProperties.value)
+        brasAndHost.foreachPartition{ batch =>
+          val conn: Connection = DriverManager.getConnection(bJdbcURL.value)
+          val st: PreparedStatement = conn.prepareStatement("INSERT INTO brashostmapping(bras_id,olt,portPON,host_endpoint) " +
+            " VALUES (?,?,?,?)" +
+            " ON CONFLICT (host_endpoint) DO UPDATE  " +
+            " SET bras_id = excluded.bras_id, " +
+            " olt = excluded.olt, " +
+            " portPON = excluded.portPON ;"
+          )
+          // 300 : size of batch : Number of rows you want per batch.
+
+          batch.grouped(300).foreach {session =>
+            session.foreach{x =>
+              st.setString(1,x.getString(0))
+              st.setString(2,x.getString(1))
+              st.setString(3,x.getString(2))
+              st.setString(4,x.getString(3))
+              st.addBatch()
+            }
+            st.executeBatch()
+          }
+          // Can we add try catch here ??? -
+          // TODO WARNING!!! this produce connection leak. /!\
+          conn.close()
+          logger.info(s"Save brashost mapping successfully")
+        }
+
+      }catch{
+        case e: SQLException => System.err.println("SQLException occur when save brashostmapping : " + e.getSQLState + " " + e.getMessage)
+        case e: Exception => System.err.println("UncatchException occur when save brashostmapping : " +  e.getMessage)
+        case _ => println("Ignore !")
+      }
+
+      brasAndHost.unpersist()
+
+      /*
+              val timeFunc: (AnyRef => String) = (arg: AnyRef) => {
+                getCurrentTime()
+              }
+              val sqlTimeFunc = udf(timeFunc)*/
+
+      ///////////////////// COUNT BY PORT //////////////////////////////////////////////////////////////
+      val brasCountByPort = brasInfo.select("name","connect_type","port")
+        .groupBy(col("port"),col("connect_type"))
+        .agg(count(col("name")).as("count_by_port"),countDistinct(col("name")).as("count_distinct_by_port"))
+        .cache()
+
+      val brasCountByPortTotalPivot =  brasCountByPort.groupBy("port").pivot("connect_type",bConnectType.value)
+        .agg(expr("coalesce(first(count_by_port),0)"))
+        .withColumnRenamed("SignIn","signin_total_count_by_port")
+        .withColumnRenamed("LogOff","logoff_total_count_by_port")
+
+      val brasCountByPortDistinctPivot = brasCountByPort.groupBy("port").pivot("connect_type",bConnectType.value)
+        .agg(expr("coalesce(first(count_distinct_by_port),0)"))
+        .withColumnRenamed("SignIn","signin_distinct_count_by_port")
+        .withColumnRenamed("LogOff","logoff_distinct_count_by_port")
+
+      val brasCountByPortPivot: DataFrame = brasCountByPortTotalPivot.join(brasCountByPortDistinctPivot,"port")
+        //.withColumn("time",sqlTimeFunc(col("content1")))
+        .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+      brasCountByPortPivot.createOrReplaceTempView("brasCountByPortPivot")
+
+      val result_cb_port = ss.sql("SELECT *, split(port, '/')[0] as bras_id," +
+        " split(port, '/')[1] as line_ol, split(port, '/')[2] as card_ol,split(port, '/')[3] as port_ol FROM brasCountByPortPivot")
+
+      //TODO SAVE TO POSTGRES.
+
+      try{
+        PostgresIO.writeToPostgres(ss, result_cb_port, bJdbcURL.value, "bras_count_by_port", SaveMode.Append, bPgProperties.value)
+      }catch{
+        case e: SQLException => System.err.println("SQLException occur when save bras_count_by_port : " + e.getSQLState + " " + e.getMessage)
+        case e: Exception => System.err.println("UncatchException occur when save bras_count_by_port : " +  e.getMessage)
+        case _ => println("Ignore !")
+      }
+
+
+
+      //////////////////////////// COUNT BY CARD ///////////////////////////////////////////////////////////
+      val brasCountByCard = brasInfo.select("name","connect_type","card")
+        .groupBy(col("card"),col("connect_type"))
+        .agg(count(col("name")).as("count_by_card"),countDistinct(col("name")).as("count_distinct_by_card"))
+        .cache()
+
+      val brasCountByCardTotalPivot =  brasCountByCard.groupBy("card").pivot("connect_type",bConnectType.value)
+        .agg(expr("coalesce(first(count_by_card),0)"))
+        .withColumnRenamed("SignIn","signin_total_count_by_card")
+        .withColumnRenamed("LogOff","logoff_total_count_by_card")
+
+      val brasCountByCardDistinctPivot = brasCountByCard.groupBy("card").pivot("connect_type",bConnectType.value)
+        .agg(expr("coalesce(first(count_distinct_by_card),0)"))
+        .withColumnRenamed("SignIn","signin_distinct_count_by_card")
+        .withColumnRenamed("LogOff","logoff_distinct_count_by_card")
+
+      val brasCountByCardPivot: DataFrame = brasCountByCardTotalPivot.join(brasCountByCardDistinctPivot,"card")
+        //.withColumn("time",sqlTimeFunc(col("content1")))
+        .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+      brasCountByCardPivot.createOrReplaceTempView("brasCountByCardPivot")
+
+      val result_cb_card = ss.sql("SELECT *,split(card, '/')[0] as bras_id, " +
+        "split(card, '/')[1] as line_ol, split(card, '/')[2] as card_ol FROM brasCountByCardPivot")
+
+      //TODO SAVE TO POSTGRES
+      try{
+        PostgresIO.writeToPostgres(ss, result_cb_card, bJdbcURL.value, "bras_count_by_card", SaveMode.Append, bPgProperties.value)
+      }catch{
+        case e: SQLException => System.err.println("SQLException occur when save bras_count_by_card : " + e.getSQLState + " " + e.getMessage)
+        case e: Exception => System.err.println("UncatchException occur when save bras_count_by_card : " +  e.getMessage)
+        case _ => println("Ignore !")
+      }
+
+
+
+      ////////////////////////////// LineCard ///////////////////////////////////
+
+
+      val brasCountByLine = brasInfo.select("name","connect_type","line")
+        .groupBy(col("line"),col("connect_type"))
+        .agg(count(col("name")).as("count_by_line"),countDistinct(col("name")).as("count_distinct_by_line"))
+        .cache()
+
+      val brasCountByLineTotalPivot =  brasCountByLine.groupBy("line").pivot("connect_type",bConnectType.value)
+        .agg(expr("coalesce(first(count_by_line),0)"))
+        .withColumnRenamed("SignIn","signin_total_count_by_line")
+        .withColumnRenamed("LogOff","logoff_total_count_by_line")
+
+      val brasCountByLineDistinctPivot = brasCountByLine.groupBy("line").pivot("connect_type",bConnectType.value)
+        .agg(expr("coalesce(first(count_distinct_by_line),0)"))
+        .withColumnRenamed("SignIn","signin_distinct_count_by_line")
+        .withColumnRenamed("LogOff","logoff_distinct_count_by_line")
+
+      val brasCountByLinePivot: DataFrame = brasCountByLineTotalPivot.join(brasCountByLineDistinctPivot,"line")
+        //.withColumn("time",sqlTimeFunc(col("content1")))
+        .withColumn("time",org.apache.spark.sql.functions.current_timestamp())
+
+      brasCountByLinePivot.createOrReplaceTempView("brasCountByLinePivot")
+      val result_cb_line = ss.sql("SELECT *,split(line, '/')[0] as bras_id, split(line, '/')[1] as line_ol FROM brasCountByLinePivot ")
+
+      //TODO SAVE TO POSTGRES
+      try{
+        PostgresIO.writeToPostgres(ss, result_cb_line, bJdbcURL.value, "bras_count_by_line", SaveMode.Append, bPgProperties.value)
+      }catch{
+        case e: SQLException => System.err.println("SQLException occur when save bras_count_by_line : " + e.getSQLState + " " + e.getMessage)
+        case e: Exception => System.err.println("UncatchException occur when save bras_count_by_line : " +  e.getMessage)
+        case _ => println("Ignore !")
+      }
+
+      // UNPERSIT
+      brasCountByLine.unpersist()
+      brasCountByCard.unpersist()
+      brasCountByPort.unpersist()
+
+      //////////////////////////// Bras ///////////////////////////////////////
+
       val brasCount = brasInfo.select("name","connect_type","content1")
         .groupBy(col("content1"),col("connect_type"))
         .agg(count(col("name")).as("count_by_bras"),countDistinct(col("name")).as("count_distinct_by_bras"))

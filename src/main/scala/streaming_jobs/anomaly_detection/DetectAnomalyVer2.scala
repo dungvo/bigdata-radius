@@ -593,56 +593,68 @@ object DetectAnomalyVer2 {
 
           bras_result3_ids_outlier.foreachPartition { part =>
             //val r = new RedisClient("172.27.11.141", 6373)
-            val clients = RedisClientFactory.getOrCreateClient(("172.27.11.141", 6373))
-            clients.withClient{client =>
-              val iter = part.map{ bras =>
-                //Current time
-                val key = getRedisKey(bras,0)
-                // Current time minus 1,2,3 minute
-                val keyMinusOne = getRedisKey(bras,-1)
-                val keyMinusTwo = getRedisKey(bras,-2)
-                val keyMinusThree = getRedisKey(bras,-3)
-                val time = getCurrentTime()
-                //val list = r.lrange(key,0,-1)
-                val list = client.lrange(key,0,-1)
-                val list1 = client.lrange(keyMinusOne,0,-1)
-                val list2 = client.lrange(keyMinusTwo,0,-1)
-                val list3 = client.lrange(keyMinusThree,0,-1)
+            try {
+              val clients = RedisClientFactory.getOrCreateClient(("172.27.11.141", 6373))
+              println("Get new redis client in port " + clients.port)
+              clients.withClient { client =>
+                val iter = part.map { bras =>
+                  //Current time
+                  val key = getRedisKey(bras, 0)
+                  // Current time minus 1,2,3 minute
+                  val keyMinusOne = getRedisKey(bras, -1)
+                  val keyMinusTwo = getRedisKey(bras, -2)
+                  val keyMinusThree = getRedisKey(bras, -3)
+                  val time = getCurrentTime()
+                  //val list = r.lrange(key,0,-1)
+                  val list = client.lrange(key, 0, -1)
+                  val list1 = client.lrange(keyMinusOne, 0, -1)
+                  val list2 = client.lrange(keyMinusTwo, 0, -1)
+                  val list3 = client.lrange(keyMinusThree, 0, -1)
 
-                val finalList :List[Option[String]] = list.getOrElse(List(None)):::list1.getOrElse(List(None)):::list2.getOrElse(List(None)):::list3.getOrElse(List(None))
+                  val finalList: List[Option[String]] = list.getOrElse(List(None)) ::: list1.getOrElse(List(None)) ::: list2.getOrElse(List(None)) ::: list3.getOrElse(List(None))
 
-                (key,bras,time,finalList.flatten.mkString(","))
-              }
-              /* val rdd = sc.parallelize(iter.toSeq)
+                  (key, bras, time, finalList.flatten.mkString(","))
+                }
+                println("Get values from redis susccessfully " )
+                /* val rdd = sc.parallelize(iter.toSeq)
                val logoutUserDF = rdd.toDF("key","bras_id","time","users_list")
                logoutUserDF.show*/
-              //val sql = s"INSERT INTO logoff_users(key,bras_id,time,user_list) values()"
-              try{
-                val conn: Connection = DriverManager.getConnection(bJdbcURL.value)
-                val preparedStatement = conn.prepareStatement(" INSERT INTO logoff_users(event_key,bras_id,time,user_list) values(?, ?, ?, ?) ;")
+                //val sql = s"INSERT INTO logoff_users(key,bras_id,time,user_list) values()"
+                try {
+                  println("Create new Postgres connection : ")
+                  val conn: Connection = DriverManager.getConnection(bJdbcURL.value)
 
-                iter.foreach{
-                  tuple =>
+                  val preparedStatement = conn.prepareStatement(" INSERT INTO logoff_users(event_key,bras_id,time,user_list) values(?, ?, ?, ?) ;")
 
-                    //DEBUG:
-                    //println(tuple)
-                    //
-                    preparedStatement.setString(1,tuple._1)
-                    preparedStatement.setString(2,tuple._2)
-                    preparedStatement.setTimestamp(3,tuple._3)
-                    preparedStatement.setString(4,tuple._4)
-                    preparedStatement.addBatch()
+                  iter.foreach {
+                    tuple =>
+
+                      //DEBUG:
+                      //println(tuple)
+                      //
+                      preparedStatement.setString(1, tuple._1)
+                      preparedStatement.setString(2, tuple._2)
+                      preparedStatement.setTimestamp(3, tuple._3)
+                      preparedStatement.setString(4, tuple._4)
+                      preparedStatement.addBatch()
+                  }
+                  preparedStatement.executeBatch()
+                  conn.close()
+                  println("Execute batch okey. ")
+                  logger.info(s"Save batch of logoffuser successfully to postgres")
+                } catch {
+                  case e: SQLException => println("Error when saving data to pg logoff_users " + e.getMessage + e.getMessage + e.getStackTrace)
+                  case e: Exception => println("Uncatched - Error when saving data to pg logoff_users  " + e.getMessage + e.getStackTrace)
+                  case _ => println("Dont care :))")
                 }
-                preparedStatement.executeBatch()
-                conn.close()
-                logger.info(s"Save batch ${part.toString()} successfully")
-              }catch {
-                case e: SQLException => println("Error when saving data to pg logoff_users " + e.getMessage + e.getMessage + e.getStackTrace)
-                case e: Exception => println("Uncatched - Error when saving data to pg logoff_users  " + e.getMessage + e.getStackTrace)
-                case _ => println("Dont care :))")
-              }
 
+              }
+              //
+            }catch {
+              case e: Exception => println("Uncatched - Error insight block Redis client.   " + e.getMessage + e.getStackTrace)
+              case _ => println("Dont care :))")
             }
+
           }
 
 
@@ -658,6 +670,7 @@ object DetectAnomalyVer2 {
             //PostgresIO.writeToPostgres(ss, savedToDB_DF, bJdbcURL.value, "dwh_radius_bras_detail", SaveMode.Append, bPgProperties.value)
             //Upsert to postgres
             upsertDetailToPostgres(ss,savedToDB_DF,bJdbcURL.value)
+            logger.info("Upsert Bras Detail to DB successfully.")
             //Upsert
 
           } catch {
