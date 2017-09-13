@@ -95,6 +95,12 @@ object DateTimeTest{
     val date: DateTime = DateTime.parse(string,DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZZ") )
     println(date)
 
+    val array = new ArrayBuffer[String]()
+    for(i <- 1 to  60){
+      array.append("'download-" + i + "'")
+    }
+    val seq :Seq[String]= array.toList
+    println(seq)
 
 
 

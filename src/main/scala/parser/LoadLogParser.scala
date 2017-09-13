@@ -57,6 +57,22 @@ class LoadLogParser extends AbtractLogParser{
             //case _ => Some(ErroLogLine(line))
         }
     }
+    def extractValuesSimply(line: String)={
+        line match {
+            case loadRegexPattern(time1WithQuote,l_nASNameWithQuote,l_nASPortWithQuote,conNameWithQuote,sessIDWithQuote,
+            input,output,termcode,sessionTime,ipWithQuote,macWithQuote,text)
+            =>  List("",time1WithQuote,l_nASNameWithQuote,l_nASPortWithQuote,conNameWithQuote,sessIDWithQuote,
+                input,output,termcode,sessionTime,ipWithQuote,macWithQuote,text).mkString(",")
+
+            case loadStatusRegexPattern(statusWithQuote,time1WithQuote,l_nASNameWithQuote,l_nASPortWithQuote,conNameWithQuote,sessIDWithQuote,
+            input,output,termcode,sessionTime,ipWithQuote,macWithQuote,text)
+            =>  List(statusWithQuote,time1WithQuote,l_nASNameWithQuote,l_nASPortWithQuote,conNameWithQuote,sessIDWithQuote,
+                input,output,termcode,sessionTime,ipWithQuote,macWithQuote,text).mkString(",")
+
+            case _ => null
+            //case _ => Some(ErroLogLine(line))
+        }
+    }
     // BELOW ARE JAVA STYLE :
 
 

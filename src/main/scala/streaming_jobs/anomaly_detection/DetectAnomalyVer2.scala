@@ -131,7 +131,8 @@ object DetectAnomalyVer2 {
         // Select  newest data to merge and update (avoid duplicate by select newest data).
         val newestBras = brasCounDFrank.where(col("rank_time") === lit(1)).drop(col("rank_time")).cache()
         brasCounDFrank.unpersist()
-        val rated = brasCounDF.withColumn("rateSL", ($"signin_total_count") / ($"logoff_total_count" + 1))
+        val rated = brasCounDF.na.fill(0)
+          .withColumn("rateSL", ($"signin_total_count") / ($"logoff_total_count" + 1))
           .withColumn("rateLS", ($"logoff_total_count") / ($"signin_total_count" + 1))
 
 

@@ -58,8 +58,6 @@ object ParseConnLogRadiusRaw {
 
     //parse(sparkSession,30,"hdfs://ha-cluster/user/hungvd8/radius-raw/radius_rawlog/isc-radius-2017-04-","2017-04-",bParser)
 
-
-
   }
 
 
