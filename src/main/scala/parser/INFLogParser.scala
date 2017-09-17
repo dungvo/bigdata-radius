@@ -43,6 +43,7 @@ class INFLogParser extends AbtractLogParser{
   val searchObj5 = s"$text$date $time$text$hostName$text$module3$text deregister reason sf".r
   val searchObj6 = s"$text$date $time$text$hostName$text$module3$text deregister reason lofi".r
   val searchObj7 = s"$text$date $time$text$hostName$text$module3$text power off".r
+  val searchObj8 = s"$text$date $time$text$hostName$text$module3$text deregister reason los".r
   def extractValues(line: String): Option[AbtractLogLine] ={
     line match{
       case searchObj0(text,date,time,text2,hostName,text3,module) => Option (InfLogLineObject("user port down",hostName,stringToStandardDate(date),time,module))
@@ -53,6 +54,7 @@ class INFLogParser extends AbtractLogParser{
       case searchObj5(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("module/cpe error",hostName,stringToStandardDate(date),time,module))
       case searchObj6(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("disconnect/lost IP",hostName,stringToStandardDate(date),time,module))
       case searchObj7(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("power off",hostName,stringToStandardDate(date),time,module))
+      case searchObj8(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("disconnect/lost IP",hostName,stringToStandardDate(date),time,module))
       case _ => None
     }
   }

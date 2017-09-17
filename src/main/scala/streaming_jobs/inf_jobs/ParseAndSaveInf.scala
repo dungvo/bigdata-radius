@@ -65,6 +65,8 @@ object ParseAndSaveInf {
       // Tip 1 : Use def instead
       //Save conn log to ES
       // Tip 2 : do not declare variable.
+      // Notice var x: Int ---- var x: => Int
+
 
       //objectConnLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius-connlog_new","type" -> "connlog"))
       lines.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "inf" ,"type" -> "inf_erro"))
