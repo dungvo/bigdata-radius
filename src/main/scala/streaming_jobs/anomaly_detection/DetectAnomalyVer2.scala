@@ -708,7 +708,7 @@ object DetectAnomalyVer2 {
                 outlier
               } catch {
                 case e: Exception => {
-                  println("ERROR IN PARSING BLOCK + " + e.printStackTrace() + " " + e.getMessage +  " " + row.toString())
+                  println("ERROR IN PARSING BLOCK + StackTrace : " + e.printStackTrace() + " Message: " + e.getMessage +  " row: " + row.toString())
                   BrasCoutOutlier("n/a", 0, 0, new Timestamp(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
                 }
                 //case _: Throwable => println("Throwable ")

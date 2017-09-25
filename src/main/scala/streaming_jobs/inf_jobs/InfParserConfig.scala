@@ -69,3 +69,34 @@ object InfDisconectConfig {
   }
 }
 
+
+case class InfLosConfig(
+                           streamingBatchDurations: FiniteDuration,
+                           streamingCheckPointDir: String,
+                           sparkConfig: Map[String,String],
+                           souceKafka: Map[String,String],
+                           postgresConfig: Map[String,String],
+                           infLosKafkaTopic: String,
+                           producerConfig: Predef.Map[String,String]
+                          ) extends Serializable{
+  import com.typesafe.config.{Config, ConfigFactory}
+}
+
+object InfLosConfig {
+  import net.ceedubs.ficus.Ficus._
+  def apply() : InfLosConfig = apply(ConfigFactory.load)
+  def apply(infConfig: Config):InfLosConfig = {
+    val config = infConfig.getConfig("losDetect")
+    new InfLosConfig(
+      config.as[FiniteDuration]("streamingBatchDuration"),
+      config.as[String]("streamingCheckPointDir"),
+      config.as[Map[String,String]]("sparkConfig"),
+      config.as[Map[String,String]]("sourceKafka"),
+      config.as[Map[String,String]]("postgresConfig"),
+      config.as[String]("infLosKafkaTopic"),
+      config.as[Map[String,String]]("producerConfig")
+    )
+  }
+}
+
+

@@ -207,6 +207,9 @@ insert  into  inserttest(bras_id,olt,portpon,time)
 
 CREATE TABLE linecard_ol (bras_id varchar(30) PRIMARY KEY NOT NULL, line_ol_list varchar(100),card_ol_list varchar(100)) ;
 
+CREATE TABLE inf_index_count_by_module(module_id varchar(30)PRIMARY KEY NOT NULL, num_customer int) ;
+
+
 sudo docker network create -d bridge --subnet 172.30.41.0/24 --gateway 171.30.41.1 docke
 FROM php:7.0-apache
 RUN mkdir -p /var/www/html/bigdata_noc

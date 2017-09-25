@@ -7,7 +7,7 @@ import core.streaming.InfParserBroadcast
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-import org.apache.spark.sql.functions.{col, expr}
+import org.apache.spark.sql.functions.{col, expr, from_unixtime}
 import org.apache.spark.streaming.{Duration, StreamingContext, Time}
 import org.apache.spark.streaming.dstream.DStream
 import org.json4s.jackson.JsonMethods.parse
@@ -41,6 +41,7 @@ object ParseAndSaveInf {
     val bParser = InfParserBroadcast.getInstance(sc, infParser)
     val bErrorType = sc.broadcast(Seq("module/cpe error", "disconnect/lost IP"))
     val bInfPortDown = sc.broadcast(infPortDownTopic)
+    val bInfLos = sc.broadcast("inf-los-detect")
     val bProducerConfig = sc.broadcast[Map[String,String]](producerConfig)
     val jdbcUrl = PostgresIO.getJDBCUrl(postgresConfig)
 
@@ -80,7 +81,7 @@ object ParseAndSaveInf {
 
     lines.foreachRDD{rdd =>
       val inf_df = rdd.toDF("log_type","host","date","time","module_ol")
-
+      inf_df.cache()
       inf_df.createOrReplaceTempView("inf_df")
       //inf_df.show(10)
       import org.apache.spark.sql.functions.unix_timestamp
@@ -123,17 +124,50 @@ object ParseAndSaveInf {
           }.toList
         }
       }
+      // LOS
+      val converFlag: (String => Int) = (args: String)=> {
+        if(args == "los" ) 1 else -1
+      }
+      val sqlFlag = org.apache.spark.sql.functions.udf(converFlag)
+      val filterdLos = ss.sql("SELECT concat(split(module, '/')[0],'/',split(module, '/')[2]) as module_ol,split(module, '/')[3] as index_ol,times_stamp,log_type   FROM  inf_trf WHERE log_type = 'los' OR log_type = 'power off' ")
+                            .withColumn("times_stamp",from_unixtime(unix_timestamp(col("times_stamp"),"yyyy-MM-dd HH:mm:ss"),"yyyy-MM-dd HH:mm"))
+        .withColumn("flag",sqlFlag(col("log_type")))
 
+      filterdLos.createOrReplaceTempView("los_and_po")
+      filterdLos.show()
+      val filterLOSandPO = ss.sql("SELECT module_ol,index_ol,times_stamp FROM los_and_po GROUP BY module_ol,index_ol,times_stamp HAVING Sum(flag) > 0 ")
+
+      filterLOSandPO.show()
+      inf_df.unpersist()
+      // Send LOS to kafka2
+      filterLOSandPO.rdd.foreachPartition{
+        partition =>
+          if(partition.hasNext){
+            val producer: KafkaProducer[String,String] = KafkaProducerFactory.getOrCreateProducer(bProducerConfig.value)
+            val context = TaskContext.get()
+            val callback = new KafkaDStreamSinkExceptionHandler
+            partition.map{
+              row =>
+                val massage = row.getAs[String]("times_stamp").toString+"#"+row.getAs[String]("module_ol")+"#"+row.getAs[String]("index_ol")
+                //val massage = row.getAs[java.sql.Timestamp]("times_stamp").toString+"#"+row.getAs[String]("module_ol")+"#"+row.getAs[String]("index_ol")
+                println(massage)
+                //val record = new ProducerRecord[String,String](bAnomalyDetectKafkaTopic.value,"anomaly",string)
+                //Hope this will help.
+                val record = new ProducerRecord[String,String](bInfLos.value,UUID.randomUUID().toString,massage)
+                callback.throwExceptionIfAny()
+                producer.send(record,callback)
+            }.toList
+          }
+      }
     }
-
     //val filteredForPortDown = lines.filter(ob => (ob.logType == "disconnect/lost IP" || ob.logType == "user port down" || ob.logType == "module/cpe error"))
-
     //TODO: Save to postgres.
     // DStreamToPostgres
     //lines.persistToStorageDaily(Predef.Map[String, String]("indexPrefix" -> "inf", "type" -> "rawLog"))
     val filtered: DStream[InfLogLineObject] = lines.filter(ob => (ob.logType == "module/cpe error" ||
                                         ob.logType == "disconnect/lost IP" ||
-                                        ob.logType == "power off"))
+                                        ob.logType == "power off" ||
+                                        ob.logType == "los"))
     //filteredForPortDown.foreachRDD{
     //  rdd =>
     //    val df = rdd.toDF()
@@ -152,7 +186,7 @@ object ParseAndSaveInf {
 
     val hostErrorCounting = mappedLogType
       // .reduceByKey(_ + _)
-      .reduceByKeyAndWindow(_ + _, _ - _, org.apache.spark.streaming.Duration(90 * 1000),org.apache.spark.streaming.Duration(30 * 1000))
+      .reduceByKeyAndWindow(_ + _, _ - _, org.apache.spark.streaming.Duration(120 * 1000),org.apache.spark.streaming.Duration(60 * 1000))
       .filter(pair => (pair._2 > 0))
 
     val ds: DStream[HostErrorCountObject] = hostErrorCounting.map {
@@ -165,9 +199,12 @@ object ParseAndSaveInf {
     ds.foreachRDD {
       //(rdd,time: Time) =>
       rdd =>
-        val df = rdd.toDF("host_endpoint", "erro", "date_time", "count")
-        //df.show(10)
-        val dfPivot = df.groupBy("host_endpoint", "date_time").pivot("erro", bErrorType.value)
+        val df = rdd.toDF("host_endpoint", "erro", "date_time", "count").cache
+
+        // should i cache it
+
+        val dfPivot = df.filter("erro != 'los'")
+          .groupBy("host_endpoint", "date_time").pivot("erro", bErrorType.value)
           .agg(expr("coalesce(first(count),0)")).na.fill(0)
           //.cache()
           .withColumnRenamed("module/cpe error", "cpe_error")
@@ -188,9 +225,9 @@ object ParseAndSaveInf {
           case e: Exception => System.err.println("UncatchException occur when save result_inf_tmp: " +  e.getMessage)
           case _ => println("Ignore !")
         }
-
+        df.unpersist()
         val host_endpoint_id_df = result_inf_tmp.select("host_endpoint")
-        host_endpoint_id_df.show()
+        //host_endpoint_id_df.show()
         val host_endpoint_ids: Array[Any] = host_endpoint_id_df.rdd.map(r => r(0)).collect()
 
         if (host_endpoint_ids.length > 0) {

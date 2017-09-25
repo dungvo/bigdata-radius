@@ -54,7 +54,7 @@ class INFLogParser extends AbtractLogParser{
       case searchObj5(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("module/cpe error",hostName,stringToStandardDate(date),time,module))
       case searchObj6(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("disconnect/lost IP",hostName,stringToStandardDate(date),time,module))
       case searchObj7(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("power off",hostName,stringToStandardDate(date),time,module))
-      case searchObj8(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("disconnect/lost IP",hostName,stringToStandardDate(date),time,module))
+      case searchObj8(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("los",hostName,stringToStandardDate(date),time,module))
       case _ => None
     }
   }
@@ -98,19 +98,22 @@ object DateAndTimeTest{
       "<133>0000142260: Jun  1 21:28:47: HNIP31102GC57: %DEVICE-5-POWER-MANAGE: Power running no good detected, power NO : 1.",
       "<133>0000160516: Jun  2 00:14:19: HNIP35201GC57: %OAM-5-CPU_BUSY: cpu is busy.",
       "<133>0000160516: Jun  2 00:14:19: HNIP35201GC57: %OAM-5-RELOAD_SUCCESSFULLY: reboot device successfully",
-      "<190>0001064412: 0001304034: Jun 27 12:34:34: HCMP34204GC57: %ONTMNT-6-Informational: 49372214:56: 2017/06/27 12:34:34 ont 0/3/67 CIGGf4306498 deregister reason sf"
+      "<190>0001064412: 0001304034: Jun 27 12:34:34: HCMP34204GC57: %ONTMNT-6-Informational: 49372214:56: 2017/06/27 12:34:34 ont 0/3/67 CIGGf4306498 deregister reason sf",
+      "<190>0000000686: 0000000718: Mar 24 21:14:16: LDGP03901GC57: %ONTMNT-6-Informational: 423559:81: 2002/03/24 21:14:16 ont 0/1/2 FPTT174061e9 deregister reason los\r\n"
     )
 
     val parser = new INFLogParser
     strings.foreach { string =>
-      val parsed = parser.extractValues(string)
+
+      val parsed = parser.extractValues(string.replace("\n", "").replace("\r", ""))
+      //val parsed = parser.extractValues(string)
       System.out.println(parsed)
 
     }
 
 
-    var count : Int= 0
-    var error : Int= 0
+/*    var count : Int= 0
+    var error : Int= 0*/
 
     //val rdacFile = new RandomAccessFile("/home/hungdv/infmb-2017-06-01_first100k.txt","rw")
 /*

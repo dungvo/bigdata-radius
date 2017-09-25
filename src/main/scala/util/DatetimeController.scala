@@ -2,7 +2,7 @@ package util
 
 import java.sql.Timestamp
 import java.text.SimpleDateFormat
-import java.util.Calendar
+import java.util.{Calendar, Date}
 
 import org.joda.time.format.DateTimeFormat
 import org.joda.time.{DateTime, Duration}
@@ -79,6 +79,16 @@ object DatetimeController extends Serializable{
     val parsed = DatetimeController.stringWithTimeZoneToSqlTimestamp(string)
     val result = formater.format(parsed)
     result
+  }
+
+  def stringToDate(string: String, pattern: String) : Date = {
+    val  formatter = new SimpleDateFormat(pattern)
+    val date = formatter.parse(string)
+    date
+  }
+  def stringToDatime(string: String,pattern: String): DateTime ={
+    val date: DateTime = DateTime.parse(string,DateTimeFormat.forPattern(pattern) )
+    date
   }
 
 
