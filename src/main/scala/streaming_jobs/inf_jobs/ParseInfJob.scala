@@ -99,6 +99,7 @@ object DetectPatternLos{
     SparkLogLevel.setStreamingLogLevels()
     val config = InfLosConfig()
     val infJob = new DetectPatternLos(config,KafkaDStreamSource(config.souceKafka))
+    println("Start -----")
     infJob.start()
   }
 }

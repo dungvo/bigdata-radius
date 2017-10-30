@@ -29,6 +29,8 @@ import scala.concurrent.duration.FiniteDuration
                            powerBIConfig: Map[String,String],
                            radiusAnomalyDetectionKafkaTopic: String,
                            producerConfig: Predef.Map[String,String]
+                           //,
+                           //redisConfig: (String,Int)
                          )extends Serializable{
   }
   object ConnJobConfig {
@@ -55,6 +57,8 @@ import scala.concurrent.duration.FiniteDuration
         config.as[Map[String,String]]("powerBIConfig"),
         config.as[String]("radiusAnomalyDetectionKafkaTopic"),
         config.as[Predef.Map[String,String]]("anomalySinkKafka")
+        //,
+        //(config.as[String]("redis.Host"),config.as[Int]("redis.Port"))
       )
     }
   }

@@ -85,8 +85,11 @@ lazy val root = (project in file("."))
       scalajHttp,
       //"RedisLabs" % "spark-redis" % "0.3.2"
       //"net.debasishg" % "redisclient_2.10" % "2.11",
-      "net.debasishg" %% "redisclient" % "3.4"
-      )
+      "net.debasishg" %% "redisclient" % "3.4",
+      // https://mvnrepository.com/artifact/redis.clients/jedis
+       "redis.clients" % "jedis" % "2.9.0"
+
+    )
 )
 
 assemblyMergeStrategy in assembly := {

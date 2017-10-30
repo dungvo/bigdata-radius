@@ -50,7 +50,7 @@ object ParsedLoadLogRadiusRaw {
 */
     //parse(sparkSession,31,"hdfs://ha-cluster/user/hungvd8/radius-raw/radius_rawlog/isc-radius-2017-07-","2017-07",bParser)
     //parse(sparkSession,30,"hdfs://ha-cluster/user/hungvd8/radius-raw/radius_1706/isc-radius-2017-06-","2017-06",bParser)
-    parse(sparkSession,30,"hdfs://ha-cluster/user/hungvd8/radius-raw/radius_1704/isc-radius-2017-04-","2017-04",bParser)
+    parse(sparkSession,1,31,"hdfs://ha-cluster/user/hungvd8/radius-raw/radius_1708/isc-radius-2017-08-","2017-08",bParser)
     //parseFixt5(sparkSession,31,"hdfs://ha-cluster/user/hungvd8/radius-raw/radius_1705/isc-radius-2017-05-","2017-05",bParser)
 
     //quickFixErrorLog(sparkSession,0,"hdfs://ha-cluster/user/hungvd8/radius-raw/radius-load-log-2017-05-131415/201705","2017-05",bParser)
@@ -72,7 +72,30 @@ object ParsedLoadLogRadiusRaw {
           bParser.value.extractValuesSimply(line)
       }.filter(x => x != null)
 
-      pasedLog.saveAsTextFile("hdfs://ha-cluster/user/hungvd8/radius-raw/load-logs-parsed/"+datePrefix+"/"+date)
+      pasedLog.saveAsTextFile("hdfs://ha-cluster/user/hungvd8/radius-raw/load-logs-parsed/"+date)
+      //TODO chu y cai nay parse conn.
+      //pasedLog.saveAsTextFile("hdfs://ha-cluster/user/hungvd8/radius-raw/load-logs-parsed/"+datePrefix+"/"+date)
+      println("Done " + fileName)
+    }
+  }
+  def parse(sparkSession: SparkSession,startDate: Int,endDate: Int, fileNamePrefix: String,datePrefix: String,bParser: Broadcast[LoadLogParser]) : Unit = {
+    val r: Seq[Int] = startDate to endDate
+
+    r.foreach{number =>
+
+      val fileName =  fileNamePrefix + f"${number}%02d"
+      println(fileName)
+      val date  = datePrefix +"-" +f"${number}%02d"
+      //val date  = fileName.substring(fileName.length - 10,fileName.length)
+      val rawLogs = sparkSession.sparkContext.textFile(fileName)
+      val pasedLog = rawLogs.map{
+        line =>
+          bParser.value.extractValuesSimply(line)
+      }.filter(x => x != null)
+
+      pasedLog.saveAsTextFile("hdfs://ha-cluster/user/hungvd8/radius-raw/load-logs-parsed/"+date)
+      //TODO chu y cai nay parse conn.
+      //pasedLog.saveAsTextFile("hdfs://ha-cluster/user/hungvd8/radius-raw/load-logs-parsed/"+datePrefix+"/"+date)
       println("Done " + fileName)
     }
   }

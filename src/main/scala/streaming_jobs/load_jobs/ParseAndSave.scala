@@ -33,8 +33,17 @@ object ParseAndSave {
 
     val sc = ss.sparkContext
     val bLoadLogParser = LoadLogBroadcast.getInstance(sc,loadLogParser)
-    val objectLoadLogs: DStream[LoadLogLineObject] = lines.transform(extractValue(bLoadLogParser))
+    val objectLoadLogs: DStream[LoadLogLineObject] = lines.transform(extractValue(bLoadLogParser)).cache()
+    // Save to kafka
+    // Extract SignIn IP - persist to Redis.
+    objectLoadLogs.foreachRDD{rdd =>
+      rdd.foreachPartition{part =>
 
+      }
+    }
+
+
+    // Save to ES.
     try{
       objectLoadLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius_load","type" -> "loadLog"))
     }catch {

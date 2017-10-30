@@ -209,7 +209,7 @@ CREATE TABLE linecard_ol (bras_id varchar(30) PRIMARY KEY NOT NULL, line_ol_list
 
 CREATE TABLE inf_index_count_by_module(module_id varchar(30)PRIMARY KEY NOT NULL, num_customer int) ;
 
-
+CREATE TABLE inf_index_count_by_BC2(bc_id varchar(30) PRIMARY KEY NOT NULL, num_customer int);
 sudo docker network create -d bridge --subnet 172.30.41.0/24 --gateway 171.30.41.1 docke
 FROM php:7.0-apache
 RUN mkdir -p /var/www/html/bigdata_noc
@@ -250,3 +250,30 @@ select distinct(card_ol),bras_id, Max(card_ol) over (PARTITION by bras_id)from b
 
 
 select bras_id, string_agg(card_ol, ',') AS card_ol_list from (select distinct(card_ol),bras_id, Max(card_ol) over (PARTITION by bras_id order by card_ol)from bras_count_by_card ) as T GROUP BY bras_id;
+
+
+insert into inf_index_count_by_BC2 (bc_id,num_customer)
+select
+
+ concat(host,'/',mudule,'/',index ) as index,
+
+// mapping index - bo chia cap 2
+CREATE TABLE inf_bc_index (bc_id varchar(30) , index_id varchar(30) PRIMARY KEY );
+// count number of user by bo chia cap 2
+CREATE TABLE inf_index_count_by_bc(bc_id varchar(30) ,num_customer int  PRIMARY KEY );
+
+insert into inf_bc_index(bc_id,index_id)
+select split_part(unknow5, '/', 1) as inf_bc_index, concat(host,'/',module,'/',index ) as index from pop where unknow1 = 'OLT';
+
+
+insert into inf_index_count_by_bc()
+
+
+DELETE FROM pop
+WHERE contract IN (SELECT contract
+              FROM (SELECT contract,
+                             ROW_NUMBER() OVER (partition BY host, module, index ORDER BY contract) AS rnum
+                     FROM pop) t
+              WHERE t.rnum > 1);
+
+

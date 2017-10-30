@@ -76,6 +76,8 @@ class ConnJob(config: ConnJobConfig, source: KafkaDStreamSource) extends SparkSt
         config.powerBIConfig,
         config.radiusAnomalyDetectionKafkaTopic,
         config.producerConfig
+        //,
+        //config.redisConfig
         //PowerBiconfig
       )
     }

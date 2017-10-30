@@ -56,13 +56,21 @@ class OpsviewParser extends AbtractLogParser{
 
 
 
-  def extracValues(line: String) : Option[OpsviewLogLineObject] ={
+  def extracValuesMapping(line: String) : Option[OpsviewLogLineObject] ={
     line match{
       case searchObj0(time,text0,text1,text2,text3,text4,text5) => Option(OpsviewLogLineObject("SERVICE ALERT",
         getTime(time),opsviewBrasLookup.getOrElse(text0,"n/a"),text1.split(":")(0),text2,text3,text4,text5.replace(",","")))
       case _ =>  None
     }
   }
+  def extracValues(line: String) : Option[OpsviewLogLineObject] ={
+    line match{
+      case searchObj0(time,text0,text1,text2,text3,text4,text5) => Option(OpsviewLogLineObject("SERVICE ALERT",
+        getTime(time),text0,text1.split(":")(0),text2,text3,text4,text5.replace(",","")))
+      case _ =>  None
+    }
+  }
+
   def getTime(timeInMilis: String): String ={
     val timeLong = safetyParserStringToLong(timeInMilis,0)
     //println("timeLong: " + timeLong)

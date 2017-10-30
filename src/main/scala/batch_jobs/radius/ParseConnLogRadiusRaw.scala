@@ -36,13 +36,13 @@ object ParseConnLogRadiusRaw {
 /*    val fs = FileSystem.get(new Configuration())
     val status: Array[FileStatus] = fs.listStatus(new Path("/user/hungvd8/radius-raw/radius_rawlog/"))
     val files = status.map(x => x.getPath)*/
-   val r: Seq[Int] = 1 to 30
+   val r: Seq[Int] = 30 to 30
 
     r.foreach{number =>
 
-      val fileName = "hdfs://ha-cluster/user/hungvd8/radius-raw/radius_1706/isc-radius-2017-06-" + f"${number}%02d"
+      val fileName = "hdfs://ha-cluster/user/hungvd8/radius-raw/radius_1709/isc-radius-2017-09-" + f"${number}%02d"
       println(fileName)
-      val date  = "2017-06-" + f"${number}%02d"
+      val date  = "2017-09-" + f"${number}%02d"
       //val date  = fileName.substring(fileName.length - 10,fileName.length)
       val rawLogs = sparkSession.sparkContext.textFile(fileName)
       val pasedLog = rawLogs.map{
@@ -60,7 +60,7 @@ object ParseConnLogRadiusRaw {
 
   }
 
-
+  // Default from day 1 to end of the month
   def parse(sparkSession: SparkSession,numberDayOfMonth: Int, fileNamePrefix: String,datePrefix: String,bParser: Broadcast[ConnLogParser]) : Unit = {
     val r: Seq[Int] = 1 to numberDayOfMonth
 
@@ -80,6 +80,26 @@ object ParseConnLogRadiusRaw {
       println("Done " + fileName)
     }
   }
+  // Parse from day1 to day2
 
+  def parse(sparkSession: SparkSession,startDate: Int,endDate: Int, fileNamePrefix: String,datePrefix: String,bParser: Broadcast[ConnLogParser]) : Unit = {
+    val r: Seq[Int] = startDate to endDate
+
+    r.foreach{number =>
+
+      val fileName =  fileNamePrefix + f"${number}%02d"
+      println(fileName)
+      val date  = datePrefix + f"${number}%02d"
+      //val date  = fileName.substring(fileName.length - 10,fileName.length)
+      val rawLogs = sparkSession.sparkContext.textFile(fileName)
+      val pasedLog = rawLogs.map{
+        line =>
+          bParser.value.simply_parse_conn(date,line)
+      }.filter(x => x != null)
+
+      pasedLog.saveAsTextFile("hdfs://ha-cluster/user/hungvd8/radius-raw/connection-logs-parsed/"+date)
+      println("Done " + fileName)
+    }
+  }
 
 }

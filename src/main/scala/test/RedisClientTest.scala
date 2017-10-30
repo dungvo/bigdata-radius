@@ -1,9 +1,17 @@
 package test
 
+import java.util
+
 import org.apache.spark.sql.SparkSession
 import com.redis._
-import core.streaming.RedisClientFactory
+import core.streaming.{RedisClientFactory, RedisClusterClientFactory}
 import org.apache.log4j.{Level, Logger}
+import java.util.HashSet
+
+import com.redis.cluster.{ClusterNode, KeyTag, RedisCluster, RegexKeyTag}
+import redis.clients.jedis.{HostAndPort, Jedis, JedisCluster}
+
+import scala.collection.mutable
 
 /**
   * Created by hungdv on 28/08/2017.
@@ -71,4 +79,54 @@ object RedisClientTest2 {
 
   }
 
+}
+
+
+object JedisClusterTest{
+  def main(args: Array[String]): Unit = {
+    val jedisClusterNodes = new util.HashSet[HostAndPort]()
+    jedisClusterNodes.add(new HostAndPort("172.27.11.173",6379))
+    jedisClusterNodes.add(new HostAndPort("172.27.11.175",6379))
+    jedisClusterNodes.add(new HostAndPort("172.27.11.176",6379))
+    val cluster = new JedisCluster(jedisClusterNodes)
+    cluster.set("foo2","baa")
+    val value = cluster.get("foo2")
+    println(value)
+    // Cause Erro
+    //val host1 = new Jedis("172.27.11.173",6379)
+    //println(host1.get("foo"))
+    // Cuase Erro
+    //val host2 = new Jedis("172.27.11.175",6379)
+    //println(host2.get("foo"))
+
+    val nodes = Array(ClusterNode("node1","172.27.11.173",6379),
+      ClusterNode("node2", "172.27.11.175", 6379),
+      ClusterNode("node3", "172.27.11.176",6379)
+    //,
+/*      ClusterNode("node4", "172.27.11.173",6380),
+      ClusterNode("node5", "172.27.11.175",6380),
+      ClusterNode("node6", "172.27.11.176",6380)*/
+    )
+    val r = new RedisCluster(new mutable.WrappedArray.ofRef(nodes): _*) {
+      override val keyTag: Option[KeyTag] = Some(RegexKeyTag)
+    }
+    print("old redis client : " +r.get("foo2"))
+  }
+}
+
+
+object RedisClusterFactoryTest{
+  def main(args: Array[String]): Unit = {
+    val jedisClusterNodes = new util.HashSet[HostAndPort]()
+    jedisClusterNodes.add(new HostAndPort("172.27.11.173",6379))
+    jedisClusterNodes.add(new HostAndPort("172.27.11.175",6379))
+    jedisClusterNodes.add(new HostAndPort("172.27.11.176",6379))
+
+    val cluster = RedisClusterClientFactory.getOrCreateClient(jedisClusterNodes)
+    for(a <- 0 to 100000 ){
+      cluster.set("factory",a.toString)
+      println(cluster.get("factory"))
+    }
+
+  }
 }

@@ -19,7 +19,7 @@ import scala.collection.mutable.ListBuffer
 /**
   * Created by hungdv on 22/08/2017.
   */
-object PatternModuleDetect {
+object  PatternModuleDetect {
   def parseAndSave(ssc:StreamingContext,
                    ss: SparkSession,
                    lines: DStream[String],
