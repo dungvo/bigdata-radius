@@ -121,11 +121,22 @@ object RedisClusterFactoryTest{
     jedisClusterNodes.add(new HostAndPort("172.27.11.173",6379))
     jedisClusterNodes.add(new HostAndPort("172.27.11.175",6379))
     jedisClusterNodes.add(new HostAndPort("172.27.11.176",6379))
+    jedisClusterNodes.add(new HostAndPort("172.27.11.176",6380))
+    jedisClusterNodes.add(new HostAndPort("172.27.11.176",6380))
+    jedisClusterNodes.add(new HostAndPort("172.27.11.176",6380))
 
-    val cluster = RedisClusterClientFactory.getOrCreateClient(jedisClusterNodes)
-    for(a <- 0 to 100000 ){
-      cluster.set("factory",a.toString)
-      println(cluster.get("factory"))
+
+
+    val cluster2 = RedisClusterClientFactory.getOrCreateClient(jedisClusterNodes)
+    val cluster = RedisClusterClientFactory.getOrCreateClient("172.27.11.173:6379,172.27.11.175:6379,172.27.11.176:6379,172.27.11.173:6380,172.27.11.175:6380,172.27.11.176:6380")
+    for(a <- 0 to 10){
+      try{
+        cluster.set("key",a.toString)
+        println(cluster.get("key"))
+      }catch{
+        case e: Exception => println("There is an error")
+      }
+
     }
 
   }

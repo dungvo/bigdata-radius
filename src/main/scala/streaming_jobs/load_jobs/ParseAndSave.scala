@@ -1,5 +1,7 @@
 package streaming_jobs.load_jobs
 
+import java.util
+
 import storage.es.ElasticSearchDStreamWriter._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
@@ -15,6 +17,7 @@ import org.apache.spark.SparkContext._
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.StreamingContext._
 import org.apache.spark.streaming.dstream._
+import redis.clients.jedis.HostAndPort
 
 
 
@@ -28,7 +31,8 @@ object ParseAndSave {
   def parserAndSave(ssc: StreamingContext,
                     ss: SparkSession,
                     lines: DStream[String],
-                    loadLogParser: LoadLogParser
+                    loadLogParser: LoadLogParser,
+                    redisNodes: String
                    ):Unit ={
 
     val sc = ss.sparkContext

@@ -113,7 +113,10 @@ class StaticFileParsing()  {
         val nocName: String = cols(2)
         val brasName = cols(4)
         if(brasName != ""){
-          result += (("\""+brasName + "\"")->("\""+ nocName +"\""))
+          result += (("\""+nocName + "\"")->("\""+ nocName +"\""))
+          // Old format - khi can map name trong bras -> name trong opsview.
+          // Gio khong can nua.
+          //result += (("\""+brasName + "\"")->("\""+ nocName +"\""))
         }
       }
     }

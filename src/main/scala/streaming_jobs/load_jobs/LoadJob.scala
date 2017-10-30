@@ -27,7 +27,8 @@ class LoadJob(config: LoadJobConfig,source: KafkaDStreamSource)extends SparkStre
         ssc,
         ss,
         input,
-        loadlogParser
+        loadlogParser,
+        "redis-cluster"
       )
     }
   }

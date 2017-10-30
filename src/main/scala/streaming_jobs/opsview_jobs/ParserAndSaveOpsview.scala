@@ -57,9 +57,6 @@ object ParserAndSaveOpsview {
         }
 
 
-
-
-
         //val opsview_df_ts = opsview_df.withColumn("timestamp",ts).drop("date_time")
        // val opsview_df_ts = opsview_df.withColumn("date_time",ts)
         val opsview_count = opsview_df.select("date_time","bras_id","service_status")
