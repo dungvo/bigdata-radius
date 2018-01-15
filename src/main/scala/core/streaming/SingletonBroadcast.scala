@@ -4,6 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import parser._
 import streaming_jobs.conn_jobs.ConcurrentHashMapAccumulator
+import streaming_jobs.dns.DNSParser
 
 import scala.collection.{Map, mutable}
 import scala.concurrent.duration.FiniteDuration
@@ -94,6 +95,24 @@ object LoadLogBroadcast {
     instance
   }
 }
+
+object DNSParsergBroadcast {
+
+  @volatile private var instance: Broadcast[DNSParser] = null
+
+  def getInstance(sc: SparkContext,parser: DNSParser): Broadcast[DNSParser] = {
+    if (instance == null) {
+      synchronized {
+        if (instance == null) {
+          instance = sc.broadcast(parser)
+        }
+      }
+    }
+    instance
+  }
+}
+
+
 object InfParserBroadcast {
 
   @volatile private var instance: Broadcast[INFLogParser] = null

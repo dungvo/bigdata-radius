@@ -7,7 +7,7 @@ import scala.util.matching.Regex
 /**
   * Created by hungdv on 06/03/2017.
   */
-class LoadLogParser extends AbtractLogParser{
+class  LoadLogParser extends AbtractLogParser{
 
 
     private val time1WithQuote      =   AtomicPattern.time1WithQuote

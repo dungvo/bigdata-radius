@@ -29,7 +29,6 @@ object  PatternModuleDetect {
     val portdownError = "user port down"
     val disconnectError = "disconnect/lost IP"*/
    val jdbcUrl = PostgresIO.getJDBCUrl(postgresConfig)
-
     //println("START INF JOB")
     val sc = ss.sparkContext
     val bJdbcURL = sc.broadcast(jdbcUrl)
@@ -39,12 +38,11 @@ object  PatternModuleDetect {
     import ss.implicits._
     //TEST
     //objectDStream.window(Duration(60*1000*1),Duration(5*1000)).foreachRDD{  rdd =>
-      //PROD
+    // PROD
    objectDStream.window(Duration(60*1000*3),Duration(30*1000)).foreachRDD{  (rdd, time: org.apache.spark.streaming.Time) =>
       val compositeKey = rdd.map{
             // Module,errorName,time
         tuple =>
-
           if(tuple._1 != "user port down")   {
             ((tuple._3.substring(0,tuple._3.lastIndexOf('/')),tuple._1),
               DatetimeController.stringToLong(tuple._2,"yyyy-MM-dd HH:mm:ss"))

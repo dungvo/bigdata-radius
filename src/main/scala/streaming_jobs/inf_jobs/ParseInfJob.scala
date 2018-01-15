@@ -22,8 +22,9 @@ class ParseInfJob(config: InfParserConfig,source: KafkaDStreamSource)extends Spa
     withSparkStreamingContext { (ss, ssc) =>
       val input: DStream[String] = source.createSource(ssc, config.inputTopic)
       val infParser = new parser.INFLogParser
-      ParseAndSaveInf.parseAndSave(
-        ssc,ss,input,infParser,config.postgresConfig,config.infPortDownKafkaTopic,config.producerConfig
+      ParseAndSaveInfV2.parseAndSave(
+        ssc,ss,input,infParser,config.postgresConfig,config.infPortDownKafkaTopic,config.producerConfig,
+        "172.27.11.173:6379,172.27.11.175:6379,172.27.11.176:6379,172.27.11.173:6380,172.27.11.175:6380,172.27.11.176:6380"
       )
     }
   }

@@ -93,8 +93,6 @@ object ParseAndSaveNoc {
     //
     // lines.persistToStorageDaily(Predef.Map[String, String]("indexPrefix" -> "noc", "type" -> "parsed"))
 
-
-
     lines.foreachRDD{
       (rdd: RDD[NocLogLineObject],time: org.apache.spark.streaming.Time) =>
         //filter from RDD -> sev == wraning or error
@@ -105,10 +103,12 @@ object ParseAndSaveNoc {
         //TODO : Save to postgres. assync mode.
         val brasErMapping = brasErAndW.withColumn("error_level",sqlLookup(col("error_name")))
           .withColumn("date_time",org.apache.spark.sql.functions.current_timestamp())
+          .dropDuplicates("bras_id","date_time")
           .cache()
         //Save kibara error to Postgres.
         try {
           PostgresIO.writeToPostgres(ss,brasErMapping,bJdbcURL.value,"dwh_kibana",SaveMode.Append,bPgProperties.value)
+
         } catch {
           case e: Exception => println("Exceotion when write data to pg")
           case _ => println("Ignore!")

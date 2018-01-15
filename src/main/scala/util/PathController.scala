@@ -16,9 +16,13 @@ object PathController extends Serializable{
     String.format("%s/%s_%s",rootFolder,dateTime,surfix)
   }
 
-  def convertDateToFilePath(rootFolder: String, date: DateTime,prefix: String,surfix: String): String =  {
-    val dateTime = date.toString("yyyy-MM-dd")
-    String.format("%s/%s%s_%s",rootFolder,prefix,dateTime,surfix)
+  def convertDateTimeToFilePath(rootFolder: String, date: DateTime,prefix: String,surfix: String) : String = {
+    val dateTime = date.toString("yyyy-MM-dd-HH")
+    String.format("%s/%s/%s",rootFolder,dateTime,surfix)
+  }
+  def convertDateTimeToFilePath(rootFolder: String, date: DateTime) : String = {
+    val dateTime = date.toString("yyyy-MM-dd-HH")
+    String.format("%s/%s",rootFolder,dateTime)
   }
 
   def main(args: Array[String]): Unit = {

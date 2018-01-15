@@ -28,3 +28,22 @@ object DataFrameTest {
     timeTest.show
   }
 }
+object CompareOperationTest {
+  def main(args: Array[String]): Unit = {
+    Logger.getLogger("akka").setLevel(Level.OFF)
+    Logger.getLogger("org").setLevel(Level.OFF)
+    val sparkSession = SparkSession.builder().appName("test").master("local").getOrCreate()
+    val sc = sparkSession.sparkContext
+    import sparkSession.implicits._
+
+    val df = sparkSession.sparkContext.parallelize(Seq(("A",8,"1"),("A",9,null),("B",9,"1"))).toDF("id","num","count")
+    df.show()
+    val notNull = df.where($"count".isNotNull)
+    notNull.show()
+    val null_ = df.where($"count".isNull)
+    null_.show()
+    val filter_true = df.filter(x => x.getAs[String]("count") != "1")
+    filter_true.show()
+
+  }
+}

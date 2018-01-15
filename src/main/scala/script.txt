@@ -48,10 +48,12 @@ CREATE TABLE noc_bras_error_counting(devide text,total_info_count int,total_crit
 ### Start Kafka server:
 ```sh
 ./bin/kafka-server-start.sh config/server.properties
+
 ```
 ### Create input topic:
 ```sh
 ./bin/kafka-topics.sh --create --zookeeper localhost:2182 --replication-factor 1 --partitions 1 --topic input
+./bin/kafka-topics.sh --create --zookeeper localhost:2182 --replication-factor 1 --partitions 3 --topic isc-dns
 ```
 ### Create output topic:
 ```sh
@@ -78,6 +80,11 @@ Run example application and publish a few words on input topic using Kafka conso
 
 ./bin/kafka-console-consumer.sh --zookeeper localhost:2181 --topic radiusConLog
 ./bin/kafka-console-consumer.sh --zookeeper localhost:2181 --topic inf-rawlogs
+////////////////
+
+bin/kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list 172.27.11.75:9092 --topic isc-dns-2  --time -1
+
+
 
 ///////////////////////////////////////// MONGO
 cd <MONGO_DIR>\bin -> vao thu muc bin

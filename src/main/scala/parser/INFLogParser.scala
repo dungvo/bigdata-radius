@@ -44,6 +44,7 @@ class INFLogParser extends AbtractLogParser{
   val searchObj6 = s"$text$date $time$text$hostName$text$module3$text deregister reason lofi".r
   val searchObj7 = s"$text$date $time$text$hostName$text$module3$text power off".r
   val searchObj8 = s"$text$date $time$text$hostName$text$module3$text deregister reason los".r
+  val searchObj9 = s"$text$date $time$text$hostName$text$module3$text register successful".r
   def extractValues(line: String): Option[AbtractLogLine] ={
     line match{
       case searchObj0(text,date,time,text2,hostName,text3,module) => Option (InfLogLineObject("user port down",hostName,stringToStandardDate(date),time,module))
@@ -55,6 +56,7 @@ class INFLogParser extends AbtractLogParser{
       case searchObj6(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("disconnect/lost IP",hostName,stringToStandardDate(date),time,module))
       case searchObj7(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("power off",hostName,stringToStandardDate(date),time,module))
       case searchObj8(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("los",hostName,stringToStandardDate(date),time,module))
+      case searchObj9(text,date,time,text2,hostName,text3,module,text4) => Option(InfLogLineObject("register",hostName,stringToStandardDate(date),time,module))
       case _ => None
     }
   }
@@ -93,13 +95,14 @@ object DateAndTimeTest{
     val strings = List("<131>0000061849: Jun  1 08:36:10: TNNP03202GC57: %DEVICE-3-LINKUPDOWN: e0/1 LinkDown.",
       "<131>0000084755: Jun  4 22:29:10: TNNP04202GC57: %DEVICE-3-LINKUPDOWN: p0/7 LinkDown.",
       "<134>0000190476: Jun  1 10:12:45: TNNP03301GC57: %ONTMNT-6-Informational: 3461158:75: 2017/06/01 10:12:45 ont 0/2/31 CIGGe4359131 deregister reason sf",
-      "<134>0000019825: Jun  1 07:29:44: HPGP09002GC57: %ONTMNT-6-Informational: 696246:49: 2017/06/01 07:29:44 ont 0/2/49 CIGGf2127457 deregister reason lofi",
+      "<134>0000045108: Jul 10 04:07:41: TNNP03301GC57: %ONTMNT-6-Informational: 3428292:33: 2002/07/10 04:07:41 ont 0/3/98 FPTT15c03ea1 deregister reason lofi",
       "<134>0000152007: Jun  1 07:39:28: HNIP51601GC57: %ONTMNT-6-Informational: 11939729:83: 2017/06/01 07:39:28 ont 0/3/117 FPTT1690202f power off",
       "<133>0000142260: Jun  1 21:28:47: HNIP31102GC57: %DEVICE-5-POWER-MANAGE: Power running no good detected, power NO : 1.",
       "<133>0000160516: Jun  2 00:14:19: HNIP35201GC57: %OAM-5-CPU_BUSY: cpu is busy.",
       "<133>0000160516: Jun  2 00:14:19: HNIP35201GC57: %OAM-5-RELOAD_SUCCESSFULLY: reboot device successfully",
       "<190>0001064412: 0001304034: Jun 27 12:34:34: HCMP34204GC57: %ONTMNT-6-Informational: 49372214:56: 2017/06/27 12:34:34 ont 0/3/67 CIGGf4306498 deregister reason sf",
-      "<190>0000000686: 0000000718: Mar 24 21:14:16: LDGP03901GC57: %ONTMNT-6-Informational: 423559:81: 2002/03/24 21:14:16 ont 0/1/2 FPTT174061e9 deregister reason los\r\n"
+      "<190>0000000686: 0000000718: Mar 24 21:14:16: LDGP03901GC57: %ONTMNT-6-Informational: 423559:81: 2002/03/24 21:14:16 ont 0/1/2 FPTT174061e9 deregister reason los\r\n",
+      "<190>0000039193: 0000039215: Dec 7 13:35:35: HCMP26703GC57: %ONTMNT-6-Informational: 4094090:75: 2017/12/07 13:35:35 ont 0/1/10 CIGGe2927892 register successful"
     )
 
     val parser = new INFLogParser

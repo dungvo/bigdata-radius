@@ -277,3 +277,32 @@ WHERE contract IN (SELECT contract
               WHERE t.rnum > 1);
 
 
+
+DELETE from    dwh_kibana  dk1 using dwh_kibana dk2 where
+tk1.ctid < dk2.ctid
+AND tk1.bras_id = dk2.bras_id
+AND tk1.error_name  = dk2.error_name
+AND tk1.error_level =  dk2.error_level
+AND tk1.date_time = dk2.date_time
+
+
+
+DELETE from    bras_count_by_port  dk1 using bras_count_by_port dk2 where
+tk1.ctid < dk2.ctid
+AND tk1.bras_id = dk2.bras_id
+AND tk1.error_name  = dk2.error_name
+AND tk1.error_level =  dk2.error_level
+AND tk1.date_time = dk2.date_time
+
+
+DELETE FROM bras_count_by_port
+WHERE  ctid NOT IN (
+   SELECT min(ctid)
+   FROM   bras_count_by_port
+   GROUP  BY bras_id, port, time);
+
+
+
+
+
+CREATE TABLE devices_history(index_ol varchar(25),log_type varchar(20),module_ol varchar(20),times_stamp timestamp,PRIMARY KEY(index_ol,times_stamp))

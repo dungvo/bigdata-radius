@@ -1,47 +1,38 @@
-package streaming_jobs.load_jobs
+package streaming_jobs.dns
 
 import core.sources.KafkaDStreamSource
 import core.streaming.{SparkLogLevel, SparkStreamingApplication}
 import org.apache.spark.streaming.dstream.DStream
-import parser.LoadLogParser
 import streaming_jobs.load_jobs.LoadJobConfig
 
 import scala.concurrent.duration.FiniteDuration
+
 /**
-  * Created by hungdv on 09/05/2017.
+  * Created by hungdv on 31/10/2017.
   */
-class LoadJob(config: LoadJobConfig,source: KafkaDStreamSource)extends SparkStreamingApplication{
+class DNSJob(config: DNSConfig,source: KafkaDStreamSource) extends SparkStreamingApplication {
   override def streamingBatchDuration: FiniteDuration = config.streamingBatchDuration
 
   override def streamingCheckpointDir: String = config.streamingCheckPointDir
   // NOTICE: Predef.Map is not collection.Map !!!!
   override def sparkConfig: Predef.Map[String, String] = config.sparkConfig
-
-
-  def start(): Unit ={
-    withSparkStreamingContext{(ss,ssc) =>
-      //val input: DStream[String]  = source.createSourceWithTimeStamp(ssc,config.inputTopic)
+  def start(): Unit = {
+    withSparkStreamingContext{(sc,ssc) =>
       val input: DStream[String]  = source.createSource(ssc,config.inputTopic)
-      val loadlogParser = new LoadLogParser
-      ParseAndSave.parserAndSave(
-        ssc,
-        ss,
-        input,
-        loadlogParser,
-        config.redisCluster
-      )
+      val DSNParser = new DNSParser
+      ParseAndMap.parserAndSave(ssc,sc,input,DSNParser,config.redisCluster,config.kafkaConfig,config.kafkaOutputTopic)
     }
   }
 }
-object LoadJob{
+
+object DnsMapping{
   def main(args: Array[String]): Unit = {
-    // Set log level - defaul is [WARN]
     SparkLogLevel.setStreamingLogLevels()
     // Create new job config.
-    val config = LoadJobConfig()
+    val config = DNSConfig()
     // Create new Job
-    val loadJob: LoadJob = new LoadJob(config,KafkaDStreamSource(config.sourceKafka))
+    val dnsMapping: DNSJob = new DNSJob(config,KafkaDStreamSource(config.sourceKafka))
     // Get the ball rolling.
-    loadJob.start()
+    dnsMapping.start()
   }
 }

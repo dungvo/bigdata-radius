@@ -9,7 +9,8 @@ import org.apache.spark.SparkConf
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import parser.ConnLogParser
+import org.joda.time.DateTime
+import parser.{ConnLogParser, LoadLogParser}
 
 
 /**
@@ -36,13 +37,14 @@ object ParseConnLogRadiusRaw {
 /*    val fs = FileSystem.get(new Configuration())
     val status: Array[FileStatus] = fs.listStatus(new Path("/user/hungvd8/radius-raw/radius_rawlog/"))
     val files = status.map(x => x.getPath)*/
-   val r: Seq[Int] = 30 to 30
+
+/*    val r: Seq[Int] = 1 to 31
 
     r.foreach{number =>
 
-      val fileName = "hdfs://ha-cluster/user/hungvd8/radius-raw/radius_1709/isc-radius-2017-09-" + f"${number}%02d"
+      val fileName = s"hdfs://ha-cluster/user/hungvd8/radius-raw/radius_1710/isc-radius-2017-10-" + f"${number}%02d"
       println(fileName)
-      val date  = "2017-09-" + f"${number}%02d"
+      val date  = "2017-10-" + f"${number}%02d"
       //val date  = fileName.substring(fileName.length - 10,fileName.length)
       val rawLogs = sparkSession.sparkContext.textFile(fileName)
       val pasedLog = rawLogs.map{
@@ -52,13 +54,47 @@ object ParseConnLogRadiusRaw {
 
       pasedLog.saveAsTextFile("hdfs://ha-cluster/user/hungvd8/radius-raw/connection-logs-parsed/"+date)
       println("Done " + fileName)
-    }
+    }*/
+
+    parseMonthly(sparkSession,bParser)
 
     //parse(sparkSession,31,"hdfs://ha-cluster/user/hungvd8/radius-raw/radius_1705/isc-radius-2017-05-","2017-05-",bParser)
 
     //parse(sparkSession,30,"hdfs://ha-cluster/user/hungvd8/radius-raw/radius_rawlog/isc-radius-2017-04-","2017-04-",bParser)
 
   }
+
+  def parseMonthly(sparkSession: SparkSession,bParser: Broadcast[ConnLogParser]) = {
+    val days = getFirstAndLastDayOfMonth()
+    val surffix = dateToSurffix(days._3)
+    val month = days._3
+    val path = s"hdfs://ha-cluster/user/hungvd8/radius-raw/radius_${surffix}/isc-radius-${month}-"
+    parse(sparkSession ,days._1,days._2,path,days._3,bParser)
+  }
+  /**
+    *
+  Just get something like this 1711, 1712, 1801, 1802,1803 .... yymm
+    */
+  def dateToSurffix(date: String) = {
+    val year = date.substring(2,4)
+    val month = date.substring(5,7)
+    val surfix = year+month
+    surfix
+  }
+
+  /**
+    * Get last day, first day, month format of running time, (previous month)
+    * @return
+    */
+  private def getFirstAndLastDayOfMonth() ={
+    val previousMonth = DateTime.now().minusMonths(1)
+    val yearMonth = previousMonth.toString("yyyy-MM")
+    val firstDay = new DateTime(previousMonth).dayOfMonth().withMinimumValue().getDayOfMonth
+    val lastDay = new DateTime(previousMonth).dayOfMonth().withMaximumValue().getDayOfMonth
+    (firstDay,lastDay,yearMonth)
+  }
+
+
 
   // Default from day 1 to end of the month
   def parse(sparkSession: SparkSession,numberDayOfMonth: Int, fileNamePrefix: String,datePrefix: String,bParser: Broadcast[ConnLogParser]) : Unit = {
@@ -103,3 +139,5 @@ object ParseConnLogRadiusRaw {
   }
 
 }
+
+

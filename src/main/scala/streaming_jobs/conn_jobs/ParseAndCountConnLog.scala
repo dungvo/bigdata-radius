@@ -157,7 +157,7 @@ object ParseAndCountConnLog {
       //objectConnLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius-connlog_new","type" -> "connlog"))
       //WARNING : this not work well since persistToStorageDaily will be cached and evaluate once.
       //objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-" + org.joda.time.DateTime.now().toString("yyyy-MM-dd")),"type" -> "connlog"))
-      objectConnLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius","type" -> "loadLog"))
+      objectConnLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius","type" -> "connlog"))
       //objectConnLogs.persistToStorage(Predef.Map[String,String]("index" -> ("radius-test-" + today),"type" -> "connlog"))
     } catch {
       case e: Exception => System.err.println("UncatchException occur when save connlog to ES : " +  e.getMessage)

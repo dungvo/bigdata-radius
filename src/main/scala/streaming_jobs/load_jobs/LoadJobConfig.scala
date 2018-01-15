@@ -9,7 +9,8 @@ case class LoadJobConfig(inputTopic: String,
                          streamingBatchDuration: FiniteDuration,
                          streamingCheckPointDir: String,
                          sparkConfig: Map[String,String],
-                         sourceKafka: Map[String,String]
+                         sourceKafka: Map[String,String],
+                         redisCluster: String
                       )extends Serializable{
 
 }
@@ -27,7 +28,8 @@ object LoadJobConfig{
       config.as[String]("streamingCheckPointDir"),
       //config.as[String]("streamingCheckPointDir"),
       config.as[Map[String,String]]("sparkConfig"),
-      config.as[Map[String,String]]("sourceKafka")
+      config.as[Map[String,String]]("sourceKafka"),
+      config.as[String]("redis-cluster")
     )
   }
 }

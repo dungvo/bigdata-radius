@@ -90,6 +90,13 @@ object DatetimeController extends Serializable{
     val date: DateTime = DateTime.parse(string,DateTimeFormat.forPattern(pattern) )
     date
   }
+  def getNow() = {
+    val now = new org.joda.time.DateTime();
+    val pattern = "yyyy-MM-dd_hh.mm.ss";
+    val formatter = DateTimeFormat.forPattern(pattern);
+    val formatted = formatter.print(now);
+    formatted
+  }
 
 
 }

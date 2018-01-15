@@ -9,7 +9,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.DStream
 import parser.{LoadLogLineObject, LoadLogParser}
-import core.streaming.LoadLogBroadcast
+import core.streaming.{LoadLogBroadcast, RedisClusterClientFactory}
 import org.apache.spark.rdd._
 import org.apache.spark._
 import org.apache.spark.rdd._
@@ -17,7 +17,9 @@ import org.apache.spark.SparkContext._
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.StreamingContext._
 import org.apache.spark.streaming.dstream._
-import redis.clients.jedis.HostAndPort
+import org.joda.time.DateTime
+import org.joda.time.format.DateTimeFormat
+import redis.clients.jedis.{HostAndPort, JedisCluster}
 
 
 
@@ -27,6 +29,9 @@ import redis.clients.jedis.HostAndPort
   * Created by hungdv on 09/05/2017.
   */
 object ParseAndSave {
+  val START_POS = 0
+  val END_POS = 30
+  // Kept length of 10 element in list
 
   def parserAndSave(ssc: StreamingContext,
                     ss: SparkSession,
@@ -38,24 +43,37 @@ object ParseAndSave {
     val sc = ss.sparkContext
     val bLoadLogParser = LoadLogBroadcast.getInstance(sc,loadLogParser)
     val objectLoadLogs: DStream[LoadLogLineObject] = lines.transform(extractValue(bLoadLogParser)).cache()
-    // Save to kafka
-    // Extract SignIn IP - persist to Redis.
-    objectLoadLogs.foreachRDD{rdd =>
-      rdd.foreachPartition{part =>
-
-      }
-    }
-
-
     // Save to ES.
-    try{
+    /*try{
       objectLoadLogs.persistToStorageDaily(Predef.Map[String,String]("indexPrefix" -> "radius_load","type" -> "loadLog"))
     }catch {
       case e: Exception => System.err.println("Uncatched Exception occur when save load log to ES : " +  e.getMessage)
       case _ => println("Ignore !")
+    }*/
+    // Extract SignIn IP - persist to Redis.
+    val loadFilterdActAlive = objectLoadLogs.filter(x => x.actStatus == "ACTALIVE")
+
+    loadFilterdActAlive.foreachRDD{rdd =>
+      rdd.foreachPartition{part =>
+        val redisClient = RedisClusterClientFactory.getOrCreateClient(redisNodes)
+
+        val kvs: Iterator[(String, String)] = part.map{ logLine =>
+          //println(logLine.IPAdress + logLine.name + logLine.date)
+          (logLine.IPAdress,logLine.name +","+ DateTime.parse(logLine.date,
+                                                  DateTimeFormat.forPattern("MMM dd yyyy HH:mm:ss")).getMillis.toString())}
+
+        kvs.foreach{kv =>
+          try{
+            //println(kv._1 + "-" + kv._2)
+            redisClient.lpush(kv._1,kv._2.toString)
+            redisClient.ltrim(kv._1,START_POS,END_POS)
+          }catch{
+            case e: Exception => println("just simply ignore" + kv._1 + " ---- " + kv._2)
+          }
+          //should put it on to a transaction though, but cluster does not support trans
+        }
+      }
     }
-
-
 
     //DEBUG
     /*lines.foreachRDD{
@@ -78,6 +96,7 @@ object ParseAndSave {
 
     //objectLoadLogs.sa
   }
+
 
   def extractValue = (parser:Broadcast[LoadLogParser]) => (lines: RDD[String]) =>
       lines.map({line =>

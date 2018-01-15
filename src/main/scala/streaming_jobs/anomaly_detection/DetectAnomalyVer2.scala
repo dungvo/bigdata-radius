@@ -300,8 +300,8 @@ object DetectAnomalyVer2 {
             case e: Throwable => println("ERROR IN SENDING BLOCK !!---------------------------------------------------" + e.printStackTrace())
           }
         }
-
-        val result3 = result3tmp.join(active_user,Seq("bras_id"), "left_outer").where($"signin_total_count" / $"active_user" > lit(0.01) || $"logoff_total_count" / $"active_user" > lit(0.01))
+        println("NEW 2.0------------------------------------------------")
+        val result3 = result3tmp.join(active_user,Seq("bras_id"), "left_outer").where($"signin_total_count" / $"active_user" > lit(0.1) || $"logoff_total_count" / $"active_user" > lit(0.03))
         result3.cache()
         // TODO Debug
         //println("result3 :----- ----" + result3.count())
