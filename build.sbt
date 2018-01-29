@@ -1,5 +1,5 @@
 
-val scalaBuidVersion = "2.11"
+val scalaBuidVersion = "2.11.8"
 val mongoSparkConnectorVerSion = "2.0.0"
 val jacksonVersion    = "2.8.4"
 val jdbcVersion = "42.0.0"
@@ -50,10 +50,14 @@ val twitterBijection = "com.twitter" % s"bijection-avro_${scalaBuidVersion}" % "
 val gson = "com.google.code.gson" % "gson" % "2.3.1"
 val scalajHttp =  "org.scalaj" %% "scalaj-http" % "2.3.0"
 
+val bigdataCore = "com.ftel" % "bigdata-core_2.11" % "0.1.0-SNAPSHOT" exclude("io.netty", "netty") // exclude("io.netty", "netty") exclude("org.apache.spark", "spark-sql_2.11")  exclude("com.fasterxml.jackson.core","jackson-annotations")  exclude("org.slf4j","slf4j-api")
+
+
+
 lazy val commonSettings = Seq(
   organization := "com.ftel",
   version := "0.1.0-SNAPSHOT",
-  scalaVersion := "2.11.7"
+  scalaVersion := "2.11.8"
 )
 
 lazy val root = (project in file("."))
@@ -87,8 +91,8 @@ lazy val root = (project in file("."))
       //"net.debasishg" % "redisclient_2.10" % "2.11",
       "net.debasishg" %% "redisclient" % "3.4",
       // https://mvnrepository.com/artifact/redis.clients/jedis
-       "redis.clients" % "jedis" % "2.9.0"
-
+       "redis.clients" % "jedis" % "2.9.0",
+       bigdataCore
     )
 )
 

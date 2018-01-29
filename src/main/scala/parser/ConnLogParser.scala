@@ -133,7 +133,8 @@ object subStringTest{
   def main(args: Array[String]): Unit = {
     //val stringTest = "Auth-Local:Reject:"
     val stringTest = "Auth-Local:LogOff:"
-    val stringTest2 = "07:00:00 00000A64 Acct-Local:LogOff: Ctfdl-160528-397, CTO-MP01-1-NEW, 77BACF41"
+    //val stringTest2 = "07:00:00 00000A64 Acct-Local:LogOff: Ctfdl-160528-397, CTO-MP01-1-NEW, 77BACF41"
+    val stringTest2 = "08:03:23 00000B58 Acct-Local:LogOff: hndsl-140714-295, HN-MP02-8, xe-0/3/0.3180:3180#HNIP50301GC57 PON 0/2/48 4cf2bfbc3016 3180 CIGGe4435109, C8612709"
     val parser = new ConnLogParser()
     println(parser.simply_parse_conn(stringTest2))
     //val stringTest = "Auth-Local:SignIn:"
