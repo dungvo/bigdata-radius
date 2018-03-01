@@ -3,44 +3,85 @@ package com.ftel.bigdata.radius.classify
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkConf
 
+import org.joda.time.DateTime
+import com.ftel.bigdata.utils.DateTimeUtil
+import com.ftel.bigdata.conf.Configure
+import scala.util.matching.Regex
+
 object Driver {
 
   def main(args: Array[String]) {
-//    val path = "/data/radius/isc-radius-2017-12-01"
-    val path = "radius-log-sample.csv"
-    val sc = getSparkContextLocal()
-    
-    val lines = sc.textFile(path, 1)
-    val logs = lines.map(x => Parser(x))
-    logs.map(x => x.get() -> 1).reduceByKey(_+_).foreach(println)
-    
-    /**
-     * PATH: "radius-log-sample.csv"
-     * (ConLog-Reject,28)
-     * (LoadLog,60)
-     * (ErrLog,2)
-     * (ConLog-LogOff,22)
-     * (ConLog-SignIn,9)
-     */
-    //logs.map(x => )
-    //println(loadLogs.count())
-    //lines.foreach(println)
-
-    //"ACTALIVE","Dec 01 2017 06:59:59","LDG-MP01-2","796176075","Lddsl-161001-360","1905765","477268962","3712614232","0","1011598","100.91.231.187","64:d9:54:82:37:e4","","1","35","0","0","0","0"
-
-  }
-
-  private def getSparkContext(): SparkContext = {
-    val sparkConf = new SparkConf()
-    val sc = new SparkContext(sparkConf)
-    sc.hadoopConfiguration.set("mapreduce.input.fileinputformat.input.dir.recursive", "true")
-    sc
+    run(args)
+    //Parser.runLocal()
   }
   
-  private def getSparkContextLocal(): SparkContext = {
-    val sparkConf = new SparkConf().setMaster("local").setAppName("TEST")
-    val sc = new SparkContext(sparkConf)
-    sc.hadoopConfiguration.set("mapreduce.input.fileinputformat.input.dir.recursive", "true")
-    sc
+  def run(args: Array[String]) {
+    val flag = args(0)
+    val day = args(1)
+
+    val sc = Configure.getSparkContext()
+
+    flag match {
+      case "month" => {
+        val dateTime = DateTimeUtil.create(day, DateTimeUtil.YMD).dayOfMonth().withMinimumValue()
+        val number = dateTime.dayOfMonth().getMaximumValue()
+        (0 until number).map(x => {
+          Parser.run(sc, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
+          //Merge.run(sc, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
+        })
+      }
+      case "month-classify-merge" => {
+        val dateTime = DateTimeUtil.create(day, DateTimeUtil.YMD).dayOfMonth().withMinimumValue()
+        val number = dateTime.dayOfMonth().getMaximumValue()
+        (0 until number).map(x => {
+          Parser.run(sc, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
+          Merge.run(sc, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
+        })
+      }
+      case "day" => {
+        Parser.run(sc, day)
+        //Merge.run(sc, day)
+      }
+      case "day-classify-merge" => {
+        Parser.run(sc, day)
+        Merge.run(sc, day)
+      }
+      case "merge-month" => {
+        val dateTime = DateTimeUtil.create(day, DateTimeUtil.YMD).dayOfMonth().withMinimumValue()
+        val number = dateTime.dayOfMonth().getMaximumValue()
+        (0 until number).map(x => {
+//          Parser.run(sc, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
+          Merge.run(sc, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
+        })
+      }
+      case "merge-day" => {
+//        Parser.run(sc, day)
+        Merge.run(sc, day)
+      }
+      case _ => {
+        println("Wrong parameters.")
+      }
+    }
+  }
+
+//  def runLocal() {
+//    val path = "radius-log-sample.csv"
+//    val sc = Configure.getSparkContextLocal()
+//    val lines = sc.textFile(path, 1)
+//    
+//    val filter = lines
+//      .filter(x => !matchRegex(x, ConLog.REGEX01))
+//      .filter(x => !matchRegex(x, ConLog.REGEX02))
+//    
+//    filter.foreach(println)
+//    println("LINE: " + lines.count())
+//    println("COUNT: " + filter.count())
+//  }
+  
+  private def matchRegex(s: String, regex: Regex): Boolean = {
+    s match {
+      case regex(_*) => true
+      case _ => false
+    }
   }
 }

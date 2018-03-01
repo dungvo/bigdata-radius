@@ -14,6 +14,7 @@ import util.PathController
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
+import com.ftel.bigdata.utils.DateTimeUtil
 
 /**
   * Created by hungdv on 03/11/2017.
@@ -113,7 +114,7 @@ object DNS_Mapping_Batch {
       //"/data/dns/dns-raw-two-hours",
       "hdfs://ha-cluster/data/dns/dns-extracted-two-hours",
       //"/data/dns/dns-extracted-two-hours",
-      new DateTime(DateTime.now().minusHours(3)))
+      DateTimeUtil.create(args(0), "yyyy-MM-dd-HH"))
 
     val result = mapper.parseAndMap()
     mapper. saveTOHDFS_DF(result,sparkSession)
@@ -147,22 +148,27 @@ object DNS_Mapping_Batch_Fix_Missing {
     val dNSConfig = DNSConfig
 
 
-    val startDate =  stringToDatime("2017-12-18 15","yyyy-MM-dd HH")
-    val endDate =  stringToDatime("2017-12-18 15","yyyy-MM-dd HH")
-    val dateList = getDateList(startDate,endDate)
-    dateList.foreach{
-      dateTime =>
+    //val startDate =  stringToDatime(args(0),"yyyy-MM-dd-HH")
+    //val endDate =  stringToDatime(args(1),"yyyy-MM-dd-HH")
+    println(args(0))
+    val date = DateTimeUtil.create(args(0), "yyyy-MM-dd-HH")
+    //val dateList = getDateList(startDate,endDate)
+    
+    //dateList.f
+    
+    //dateList.foreach{
+      //dateTime =>
         val mapper: DNS_Mapping_Batch = new DNS_Mapping_Batch(sparkSession,
           "hdfs://ha-cluster/data/dns/dns-raw-two-hours",
           //"/data/dns/dns-raw-two-hours",
           "hdfs://ha-cluster/data/dns/dns-extracted-two-hours",
           //"/data/dns/dns-extracted-two-hours",
-          dateTime.minusHours(3))
+          date.minusHours(3))
 
         println("Process : " + dateTime.toString())
         val result = mapper.parseAndMap()
-        mapper. saveTOHDFS_DF(result,sparkSession)
-    }
+        mapper.saveTOHDFS_DF(result,sparkSession)
+    //}
     println("Done ")
 
   }

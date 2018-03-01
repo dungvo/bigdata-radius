@@ -52,7 +52,7 @@ object ParseAndSave {
     }*/
     // Extract SignIn IP - persist to Redis.
     val loadFilterdActAlive = objectLoadLogs.filter(x => x.actStatus == "ACTALIVE")
-
+    //redisNodes: "172.27.11.173:6379,172.27.11.175:6379,172.27.11.176:6379,172.27.11.173:6380,172.27.11.175:6380,172.27.11.176:6380"
     loadFilterdActAlive.foreachRDD{rdd =>
       rdd.foreachPartition{part =>
         val redisClient = RedisClusterClientFactory.getOrCreateClient(redisNodes)

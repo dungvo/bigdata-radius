@@ -1,7 +1,10 @@
 package com.ftel.bigdata.radius.classify
 
+import org.joda.time.DateTime
+
 trait AbstractLog {
   def get(): String
+  def getKey(): String
 }
 
 //object AbstractLog {

@@ -1,5 +1,5 @@
 
-val scalaBuidVersion = "2.11.8"
+val scalaBuidVersion = "2.11"
 val mongoSparkConnectorVerSion = "2.0.0"
 val jacksonVersion    = "2.8.4"
 val jdbcVersion = "42.0.0"
