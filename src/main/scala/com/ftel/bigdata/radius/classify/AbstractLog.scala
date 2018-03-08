@@ -5,6 +5,8 @@ import org.joda.time.DateTime
 trait AbstractLog {
   def get(): String
   def getKey(): String
+  def getTimestamp(): Long
+  def toES(): Map[String, Any]
 }
 
 //object AbstractLog {

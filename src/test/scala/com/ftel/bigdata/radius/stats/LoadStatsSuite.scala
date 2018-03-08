@@ -15,7 +15,7 @@ class LoadStatsSuite extends FunSuite {
       """ "ACTALIVE","Dec 01 2017 06:59:59","HCM-MP06-1","-930271376","sgdsl-061222-503","89762295","34101673","2930192408","0","323994","1.54.136.213","4c:f2:bf:43:2b:0a","2405:4800:5a84:df92:0000:0000:0000:0000/64","10","21","1714387855","0","1813300587","5" """
       )
     lines.foreach(x => {
-      val log = LoadStats(LoadLog(x, "2018-01-31").asInstanceOf[LoadLog])
+      val log = LoadStats(LoadLog(x, DateTimeUtil.create("2018-01-31", DateTimeUtil.YMD).getMillis).asInstanceOf[LoadLog])
       assert(log.isInstanceOf[LoadStats])
     })
   }
@@ -23,7 +23,7 @@ class LoadStatsSuite extends FunSuite {
   test("TEST Calculate Donwload/Upload") {
     val line = """ "ACTALIVE","Dec 01 2017 06:59:59","LDG-MP01-2","796176075","Lddsl-161001-360","1905765","477268962","3712614232","0","1011598","100.91.231.187","64:d9:54:82:37:e4","","1","35","0","0","0","0" """
    
-    val log = LoadLog(line, "2018-02-12")
+    val log = LoadLog(line, DateTimeUtil.create("2018-02-12", DateTimeUtil.YMD).getMillis)
     assert(log.isInstanceOf[LoadLog])
     val stats = LoadStats(log.asInstanceOf[LoadLog])
     

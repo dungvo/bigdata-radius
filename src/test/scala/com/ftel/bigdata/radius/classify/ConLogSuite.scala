@@ -3,6 +3,7 @@ package com.ftel.bigdata.radius.classify
 import org.scalatest.FunSuite
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
+import com.ftel.bigdata.utils.DateTimeUtil
 
 @RunWith(classOf[JUnitRunner])
 class ConLogSuite extends FunSuite {
@@ -79,14 +80,14 @@ class ConLogSuite extends FunSuite {
       "11:25:46 0000051C Auth-Local:SignIn: Hnfdl-160524-065, HN-MP01-1, xe-0/0/1.3001:3001#GPON PON 0/1 3001, F84693F7"
       )
     lines.foreach(x => {
-      val log = ConLog(x, "2018-01-31")
+      val log = ConLog(x, DateTimeUtil.create("2018-01-31", DateTimeUtil.YMD).getMillis )
       assert(log.isInstanceOf[ConLog])
     })
   }
 
   test("TEST PARSE CON LOG With Text size is 8 ") {
     val line = "08:03:23 000005F0 Acct-Local:LogOff: hnfdl-150814-636, HN-MP02-8, xe-0/1/0.3180:3180#HNIP50301GC57 PON 0/2/66 70d931467a96 3180 CIGGf2832866, 32799C9E"
-    val log = ConLog(line, "2018-01-31")
+    val log = ConLog(line, DateTimeUtil.create("2018-01-31", DateTimeUtil.YMD).getMillis)
     assert(log.isInstanceOf[ConLog])
     val conLog = log.asInstanceOf[ConLog]
     assert(conLog.session == "000005F0")
@@ -110,7 +111,7 @@ class ConLogSuite extends FunSuite {
 
   test("TEST PARSE LOAD LOG") {
     val line = "08:03:23 000005F0 Acct-Local:LogOff: hnfdl-150814-636, HN-MP02-8, xe-0/1/0.3180:3180#HNIP50301GC57 PON 0/2/66 70d931467a96 3180 CIGGf2832866, 32799C9E"
-    val log = ConLog(line, "2018-01-31")
+    val log = ConLog(line, DateTimeUtil.create("2018-01-31", DateTimeUtil.YMD).getMillis)
     assert(log.isInstanceOf[ConLog])
     val conLog = log.asInstanceOf[ConLog]
     assert(conLog.session == "000005F0")

@@ -28,6 +28,11 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import com.ftel.bigdata.utils.RDDMultipleTextOutputFormat.save
 import com.ftel.bigdata.radius.classify.AbstractLog
+import core.streaming.RedisClusterClientFactory
+import com.ftel.bigdata.spark.es.EsConnection
+import com.ftel.bigdata.radius.classify.RawLog
+
+
 
 //import scala.reflect.internal.Trees.ForeachPartialTreeTraverser
 
@@ -97,6 +102,9 @@ object Driver {
   }
   
   private def run(args: Array[String], local: Boolean) {
+    
+    
+    
     // Kafka Information
     val brokers: String = args(0) //"172.27.11.75:9092,172.27.11.80:9092,172.27.11.85:9092"
     val topic: String = args(1) // "radius"
@@ -104,24 +112,56 @@ object Driver {
     val maxRate: Int = args(2).toInt // 1000
     val durations: Int = args(3).toInt // 60
     val prefix = "/data/radius/streaming/"
-    def f = (sc: SparkContext, message: DStream[RadiusMessage]) => {
+    def f = (sc: SparkContext, messages: DStream[RadiusMessage]) => {
       // Nếu không cache DStream, khi bạn thực hiện nhiềm dstream, bạn sẽ gặp file vấn đề: 
       //      KafkaConsumer is not safe for multi-threaded access
-      val dstream = message
-        .map(x => Parser.parse(x.message, DateTimeUtil.create(x.timeStamp / 1000).toString("yyyy-MM-dd")))
-        .cache()
-      dstream.foreachRDD(rdd => {
-        val load = rdd.filter(x => x.isInstanceOf[LoadLog]).map(x => x.asInstanceOf[LoadLog])
-        val err = rdd.filter(x => x.isInstanceOf[ErrLog]).map(x => x.asInstanceOf[ErrLog])
-        val con = rdd.filter(x => x.isInstanceOf[ConLog]).map(x => x.asInstanceOf[ConLog])
-        val time = DateTimeUtil.create(load.map(x => x.timestamp).reduce(Math.min) / 1000)
+//      val dstream = message
+//        .map(x => Parser.parse(x.message, DateTimeUtil.create(x.timeStamp / 1000).toString("yyyy-MM-dd")))
+//        .cache()
+      messages.foreachRDD(rdd => {
+        
+        //val sc = Configure.getSparkContext(es)
+        val esInternal = new EsConnection("172.27.11.156", 9200, "radius-index", "docs")
+        val log = rdd.map(x => Parser.parse(x.message, x.timeStamp)).cache()
+        val load = log.filter(x => x.isInstanceOf[LoadLog]).map(x => x.asInstanceOf[LoadLog]).cache()
+        val err = log.filter(x => x.isInstanceOf[ErrLog]).map(x => x.asInstanceOf[ErrLog]).cache()
+        val con = log.filter(x => x.isInstanceOf[ConLog]).map(x => x.asInstanceOf[ConLog]).cache()
+        //val time = DateTimeUtil.create(load.map(x => x.timestamp).reduce(Math.min) / 1000)
+        val time = DateTimeUtil.now.minusSeconds(durations)
         load.saveAsTextFile(prefix + "/load/" + time.toString(DateTimeUtil.YMD + "/HH/mm/ss"))
         err.saveAsTextFile(prefix + "/err/" + time.toString(DateTimeUtil.YMD + "/HH/mm/ss"))
         con.saveAsTextFile(prefix + "/con/" + time.toString(DateTimeUtil.YMD + "/HH/mm/ss"))
+        rdd.map(x => RawLog(x.timeStamp, x.message)).saveAsTextFile(prefix + "/raw/" + time.toString(DateTimeUtil.YMD + "/HH/mm/ss"))
+
+        if (!local) {
+          esInternal.save(load.filter(x => x!= null).map(x => x.toES()), s"radius-streaming-${time.toString("yyyy-MM-dd")}", "load")
+          esInternal.save(err.filter(x => x!= null).map(x => x.toES()), s"radius-streaming-${time.toString("yyyy-MM-dd")}", "err")
+          esInternal.save(con.filter(x => x!= null).map(x => x.toES()), s"radius-streaming-${time.toString("yyyy-MM-dd")}", "con")
+          esInternal.save(rdd.filter(x => x!= null).map(x => RawLog(x.timeStamp, x.message)).map(x => x.toES()), s"radius-streaming-${time.toString("yyyy-MM-dd")}", "raw")
+          //rdd.map(x => RawLog(x.timeStamp, x.message)).saveAsTextFile(prefix + "/raw/" + time.toString(DateTimeUtil.YMD + "/HH/mm/ss"))
+        }
+        // Write IP, Name and time for mapping contract in DNS
+        if (!local) {
+          val redisNodes = "172.27.11.173:6379,172.27.11.175:6379,172.27.11.176:6379,172.27.11.173:6380,172.27.11.175:6380,172.27.11.176:6380"
+          load.foreachPartition(p => {
+            val redisClient = RedisClusterClientFactory.getOrCreateClient(redisNodes)
+            val kvs: Iterator[(String, String)] = p.map(x => {
+              (x.ipAddress, x.name.toLowerCase() + "," + x.timestamp)
+            })
+            kvs.foreach(kv => {
+              try {
+                redisClient.lpush(kv._1, kv._2.toString)
+                redisClient.ltrim(kv._1, 0, 60)
+              } catch {
+                case e: Exception => println("just simply ignore" + kv._1 + " ---- " + kv._2)
+              }
+            })
+          })
+        }
       })
 
       if (!local) {
-        message.foreachRDD(rdd => {
+        messages.foreachRDD(rdd => {
           rdd.map(x => x.topic + "-" + x.partition -> x.offset)
             .reduceByKey(Math.max)
             .foreach(x => {
@@ -134,7 +174,11 @@ object Driver {
         })
       }
     }
+    
+    val es = new EsConnection("172.27.11.156", 9200, "radius-index", "docs")
     val sparkConf = createSparkConf(maxRate)
+    es.configure(sparkConf)
+    
     val ssc = new StreamingContext(sparkConf, Seconds(durations))
 
     val offsetsString = if (!local) {
@@ -200,7 +244,7 @@ object Driver {
       // Nếu không cache DStream, khi bạn thực hiện nhiềm dstream, bạn sẽ gặp file vấn đề: 
       //      KafkaConsumer is not safe for multi-threaded access
       val dstream = message
-        .map(x => Parser.parse(x.message, DateTimeUtil.create(x.timeStamp / 1000).toString("yyyy-MM-dd")))
+        .map(x => Parser.parse(x.message, x.timeStamp))
         .cache()
 
       dstream.foreachRDD(rdd => {
@@ -223,4 +267,7 @@ object Driver {
     val ssc = new StreamingContext(sparkConf, Seconds(durations))
     KafkaStreaming.run(ssc, brokers, topic, offsetsString, maxRate, durations, f)
   }
+  
+  
+  
 }

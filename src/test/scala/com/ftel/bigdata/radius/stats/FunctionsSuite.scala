@@ -24,7 +24,7 @@ class FunctionssSuite extends FunSuite {
       """ "ACTALIVE","Dec 01 2017 14:59:59","HCM-MP06-1","732492071","sgfdl-151006-056","2","80","1100","0","539973","100.106.36.93","70:d9:31:6e:d1:de","2405:4800:5a97:0925:0000:0000:0000:0000/64","0","0","411622520","0","3380674348","1" """,
       """ "ACTALIVE","Dec 01 2017 15:59:59","HCM-MP06-1","1846345404","Lddsl-161001-360","2","70","1000","0","712771","42.116.210.125","4c:f2:bf:77:c8:b6","2405:4800:5a84:c533:0000:0000:0000:0000/64","0","0","191347017","1","4051559148","31" """)
     
-    val day = "2017-12-01"
+    val day = DateTimeUtil.create("2017-12-01", DateTimeUtil.YMD).getMillis
     val path = "radius-log-sample.csv"
     val sparkSession = SparkSession.builder().appName("local").master("local[4]").getOrCreate()
     val sc = sparkSession.sparkContext

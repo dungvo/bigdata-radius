@@ -12,6 +12,7 @@ import org.apache.spark.streaming.dstream.DStream
 import com.ftel.bigdata.utils.DateTimeUtil
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.spark.SparkContext
+import com.ftel.bigdata.utils.JsonObject
 
 object KafkaStreaming {
 

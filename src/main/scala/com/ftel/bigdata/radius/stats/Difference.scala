@@ -21,15 +21,15 @@ object Difference {
   
   def main(args: Array[String]) {
     val sample1 = Array(
-          DownUp("A", 10, 20),
-          DownUp("B", 10, 30),
-          DownUp("C", 20, 30)
+          DownUp("", "A", 10, 20),
+          DownUp("", "B", 10, 30),
+          DownUp("", "C", 20, 30)
         )
         
     val sample2 = Array(
-          DownUp("A", 20, 30),
-          DownUp("C", 10, 30),
-          DownUp("D", 10, 30)
+          DownUp("", "A", 20, 30),
+          DownUp("", "C", 10, 30),
+          DownUp("", "D", 10, 30)
         )
         
     val sc = Configure.getSparkContextLocal()
@@ -46,10 +46,15 @@ object Difference {
     val sc = sparkSession.sparkContext
     val fs = FileSystem.get(sc.hadoopConfiguration)
     if (HdfsUtil.isExist(fs, s"/data/radius/stats/${previousDay}/download-upload")) {
-      val rdd1 = sc.textFile(s"/data/radius/stats/${previousDay}/download-upload", 1).map(x => new DownUp(x.split("\t")))
-      val rdd2 = sc.textFile(s"/data/radius/stats/${day}/download-upload", 1).map(x => new DownUp(x.split("\t")))
+      val rdd1 = sc.textFile(s"/data/radius/stats/${previousDay}/download-upload", 1).map(x => new DownUp(previousDay, x.split("\t")))
+      val rdd2 = sc.textFile(s"/data/radius/stats/${day}/download-upload", 1).map(x => new DownUp(day, x.split("\t")))
       val result = calculate(rdd1, rdd2)
       result.saveAsTextFile(s"/data/radius/stats/${day}/diff")
+    } else {
+      sc.textFile(s"/data/radius/stats/${day}/download-upload", 1)
+        .map(x => new DownUp(day, x.split("\t")))
+        .map(x => Difference(x.name, x.download, x.upload, x.download, x.upload))
+        .saveAsTextFile(s"/data/radius/stats/${day}/diff")
     }
   }
   

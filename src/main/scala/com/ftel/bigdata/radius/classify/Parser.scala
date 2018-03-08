@@ -4,21 +4,23 @@ import com.ftel.bigdata.conf.Configure
 import com.ftel.bigdata.utils.RDDMultipleTextOutputFormat.save
 import org.apache.spark.SparkContext
 import com.ftel.bigdata.utils.ESUtil
+import com.ftel.bigdata.utils.DateTimeUtil
 
 object Parser {
   
   val DATE_TIME_PATTERN_NOMALIZE = "yyyy-MM-dd HH:mm:ss" // "Dec 01 2017 06:59:59"
-  private val PARTITION_SIZE = 64
+  private val PARTITION_SIZE = 256
 
-  def run(sc: SparkContext, day: String) {
+  def run(sc: SparkContext, timestamp: Long) {
     try {
+      val day = DateTimeUtil.create(timestamp / 1000).toString(DateTimeUtil.YMD)
       val month = day.substring(0, 7)
       val path = s"/data/radius/rawlog/${month}/isc-radius-${day}"
       val output = s"/data/radius/temp/classify/${day}"
       //val sc = Configure.getSparkContext()
       val lines = sc.textFile(path, 1).persist()
 
-      val logs = lines.map(x => Parser.parse(x, day)).persist()
+      val logs = lines.map(x => Parser.parse(x, timestamp)).persist()
       val errLog = logs.filter(x => x.isInstanceOf[ErrLog])
       //val loadLog = logs.filter(x => x.isInstanceOf[ErrLog])
       //val conLog = logs.filter(x => x.isInstanceOf[ErrLog])
@@ -76,12 +78,12 @@ object Parser {
 
   def runLocal() {
     //val path = "/data/radius/isc-radius-2017-12-01"
-    val day = "2017-12-01"
+    val timestamp = 1512086400L//"2017-12-01"
     val path = "radius-log-sample.csv"
     val sc = Configure.getSparkContextLocal()
 
     val lines = sc.textFile(path, 1)
-    val logs = lines.map(x => Parser.parse(x, day))
+    val logs = lines.map(x => Parser.parse(x, timestamp))
     
     println("===================")
     logs.foreach(println)
@@ -111,11 +113,11 @@ object Parser {
 //    logs.filter(x => x.isInstanceOf[ErrLog]).foreach(println)
   }
   
-  def parse(line: String, day: String): AbstractLog = {
+  def parse(line: String, timestamp: Long): AbstractLog = {
     try {
-      val loadLog = LoadLog(line, day)
+      val loadLog = LoadLog(line, timestamp)
       if (loadLog.isInstanceOf[ErrLog]) {
-        val con = ConLog(line, day)
+        val con = ConLog(line, timestamp)
         //println(con.toString())
         con
       } else {
@@ -124,7 +126,7 @@ object Parser {
     } catch {
       case e: Exception => /*println("[Parse] " + line); */{
         //println(line)
-        new ErrLog(day, line)
+        new ErrLog(timestamp, line)
       }
     }
   }
@@ -140,7 +142,7 @@ object Parser {
       else "UNKNOW"
     }
     val lines = sc.textFile(path, 1).map(x => getType(x) -> 1).reduceByKey(_+_).foreach(println)
-    val count = sc.textFile(path, 1).map(x => parse(x, "2018-01-31")).filter(x => x.isInstanceOf[LoadLog]).count()
+    val count = sc.textFile(path, 1).map(x => parse(x, 1512086400L)).filter(x => x.isInstanceOf[LoadLog]).count()
     println(count)
   }
 }

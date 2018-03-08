@@ -12,6 +12,11 @@ import org.apache.spark.sql.Encoders
 import com.ftel.bigdata.utils.DateTimeUtil
 import com.ftel.bigdata.utils.Parameters
 import org.apache.spark.storage.StorageLevel
+import com.ftel.bigdata.utils.HdfsUtil
+import org.apache.hadoop.fs.FileSystem
+import com.ftel.bigdata.radius.RadiusParameters
+import com.ftel.bigdata.spark.es.EsConnection
+import org.apache.spark.SparkConf
 
 object Driver {
 
@@ -30,11 +35,16 @@ object Driver {
 //    println(number)
 //    println(dateTime.toString(DateTimeUtil.YMD))
   }
-
+  val es = new EsConnection("172.27.11.156", 9200, "radius-index", "docs")
   private def run(args: Array[String]) {
     val flag = args(0)
     val day = args(1)
-    val sparkSession = SparkSession.builder().getOrCreate()
+    
+    
+    val sparkConf = new SparkConf
+    es.configure(sparkConf)
+    
+    val sparkSession = SparkSession.builder().config(sparkConf).getOrCreate()
 
     flag match {
       case "month" => {
@@ -47,6 +57,16 @@ object Driver {
       case "day" => {
         run(sparkSession, day)
       }
+      case "es" => {
+        runES(sparkSession, day)
+      }
+      case "es-month" => {
+        val dateTime = DateTimeUtil.create(day, DateTimeUtil.YMD).dayOfMonth().withMinimumValue()
+        val number = dateTime.dayOfMonth().getMaximumValue()
+        (0 until number).map(x => {
+          runES(sparkSession, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
+        })
+      }
 //      case "month" => {
 //        val dateTime = DateTimeUtil.create(day, DateTimeUtil.YMD).dayOfMonth().withMinimumValue()
 //        val number = dateTime.dayOfMonth().getMaximumValue()
@@ -58,6 +78,14 @@ object Driver {
       case "diff" => {
         Difference.save(sparkSession, day)
       }
+      case "diff-month" => {
+        val dateTime = DateTimeUtil.create(day, DateTimeUtil.YMD).dayOfMonth().withMinimumValue()
+        val number = dateTime.dayOfMonth().getMaximumValue()
+        (0 until number).map(x => {
+          Difference.save(sparkSession, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
+        })
+      }
+      
       case "feature" => {
         Feature.save(sparkSession, args(1))
       }
@@ -71,26 +99,47 @@ object Driver {
           runSession(sparkSession, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
         })
       }
+      case "contract" => {
+        val output = s"/data/radius/stats/${day}"
+        val sc = sparkSession.sparkContext
+        sc.hadoopConfiguration.set("fs.file.impl", classOf[org.apache.hadoop.fs.LocalFileSystem].getName())
+        sc.hadoopConfiguration.set(Parameters.SPARK_READ_DIR_RECURSIVE, "true")
+        val loadStats = sc.textFile(output + s"/load-usage", 1).map(x => new LoadStats(x))
+        val count = loadStats.map(x => x.name).distinct().count()
+        println("COUNT: " + count)
+        
+      }
+      
+      
     }
   }
   
+  
   private def run(sparkSession: SparkSession, day: String) {
-    val previousDay = DateTimeUtil.create(day, "yyyy-MM-dd").minusDays(1).toString("yyyy-MM-dd")
-    
-    val path = s"/data/radius/classify/day=${day}/type=load,/data/radius/classify/day=${previousDay}/type=load"
-    val output = s"/data/radius/stats/${day}"
+    //val previousDay = DateTimeUtil.create(day, "yyyy-MM-dd").minusDays(1).toString("yyyy-MM-dd")
     
     val sc = sparkSession.sparkContext
     sc.hadoopConfiguration.set("fs.file.impl", classOf[org.apache.hadoop.fs.LocalFileSystem].getName())
     sc.hadoopConfiguration.set(Parameters.SPARK_READ_DIR_RECURSIVE, "true")
+    val fs = FileSystem.get(sc.hadoopConfiguration)
+    
+    val path = RadiusParameters.CLASSIFY_PATH +  s"/day=${day}/type=load"//Array(
+        //s"/data/radius/classify/day=${day}/type=load"//,
+        //s"/data/radius/classify/day=${previousDay}/type=load")
+        //.filter(x => HdfsUtil.isExist(fs, x)).mkString(",")
+
+    val output = RadiusParameters.STATS_PATH +  s"/${day}"
+    
+    
     
     //val sc = Configure.getSparkContextLocal()
     
     val loadStats = sc.textFile(path, 1).map(x => LoadLog(x)).map(x => LoadStats(x))
     
     //loadStats.saveAsTextFile(s"/data/radius/stats/${day}")
-    val rdd = Functions.calculateLoad(sparkSession, loadStats, LoadStats.MAX_INT, LoadStats.THRESHOLD)
-      .filter(x => DateTimeUtil.create(x.timestamp / 1000).toString("yyyy-MM-dd") == day)
+    //val rdd = Functions.calculateLoad(sparkSession, loadStats, LoadStats.MAX_INT, LoadStats.THRESHOLD)
+    val rdd = Functions.calculateLoad(sparkSession, loadStats)
+      //.filter(x => DateTimeUtil.create(x.timestamp / 1000).toString("yyyy-MM-dd") == day)
       .coalesce(32, false, None)
       .persist(StorageLevel.MEMORY_AND_DISK_SER_2)
     rdd.saveAsTextFile(output + s"/load-usage")
@@ -113,12 +162,36 @@ object Driver {
     
     Session.save(rdd, day)
     DownUp.save(rdd, day)
-    Difference.save(sparkSession, day)
+    //Difference.save(sparkSession, day)
 
-    rdd.filter(x => x.download < 0 || x.upload < 0)
-       .coalesce(32, false, None)
-       .saveAsTextFile(output + s"/invalid")
+//    rdd.filter(x => x.download < 0 || x.upload < 0)
+//       .coalesce(32, false, None)
+//       .saveAsTextFile(output + s"/invalid")
     
+  }
+  
+  private def runES(sparkSession: SparkSession, day: String) {
+
+    val sc = sparkSession.sparkContext
+    sc.hadoopConfiguration.set("fs.file.impl", classOf[org.apache.hadoop.fs.LocalFileSystem].getName())
+    sc.hadoopConfiguration.set(Parameters.SPARK_READ_DIR_RECURSIVE, "true")
+    val fs = FileSystem.get(sc.hadoopConfiguration)
+    
+    //val path = RadiusParameters.STATS_PATH +  s"/day=${day}/type=load"//Array(
+
+    val path = RadiusParameters.STATS_PATH +  s"/${day}/load-usage"
+
+    val loadStats = sc.textFile(path, 1).map(x => new LoadStats(x))
+    
+    es.save(loadStats.map(x => x.toES()), s"radius-load-${day}", "docs")
+//    //loadStats.saveAsTextFile(s"/data/radius/stats/${day}")
+//    //val rdd = Functions.calculateLoad(sparkSession, loadStats, LoadStats.MAX_INT, LoadStats.THRESHOLD)
+//    val rdd = Functions.calculateLoad(sparkSession, loadStats)
+//      //.filter(x => DateTimeUtil.create(x.timestamp / 1000).toString("yyyy-MM-dd") == day)
+//      .coalesce(32, false, None)
+//      .persist(StorageLevel.MEMORY_AND_DISK_SER_2)
+//    rdd.saveAsTextFile(output + s"/load-usage")
+
   }
 
   private def runSession(sparkSession: SparkSession, day: String) {
@@ -210,37 +283,37 @@ object Driver {
        .saveAsTextFile(output + s"/invalid")
   }
   */
-  private def runLocal() {
-    val MAX_INT = 1500
-    val THRESHOLD = 1100
-    val data = Array(
-      """ "ACTALIVE","Dec 01 2017 06:59:59","LDG-MP01-2","796176075","Lddsl-161001-360","1","100","1200","0","1011598","100.91.231.187","64:d9:54:82:37:e4","","0","0","0","0","0","0" """,
-      """ "ACTALIVE","Dec 01 2017 08:59:59","HCM-MP01-1","1670917756","sgfdl-151006-056","1","90","900","0","1","118.69.111.14","00:0d:48:0e:33:02","","0","0","0","0","0","0" """,
-      """ "ACTALIVE","Dec 01 2017 09:59:59","LDG-MP01-2","-1655374348","Lddsl-161001-360","1","50","500","0","445786","100.91.228.125","64:d9:54:bf:b8:28","","0","0","0","0","0","0" """,
-      """ "ACTALIVE","Dec 01 2017 10:59:59","LDG-MP01-2","1309903068","sgfdl-151006-056","1","60","1200","0","445789","100.91.228.118","a0:f3:c1:42:41:f7","","0","0","0","0","0","0" """,
-      """ "ACTALIVE","Dec 01 2017 11:59:59","HCM-MP06-1","192765439","sgfdl-151006-056","1","30","120","0","323988","183.80.167.92","4c:f2:bf:69:ea:72","2405:4800:5a84:df95:0000:0000:0000:0000/64","0","0","1246050250","0","3191306576","1" """,
-      """ "ACTLOGOF","Dec 01 2017 12:59:59","DNG-MP01-1","-247656230","Lddsl-161001-360","1","0","120","10","48293","100.99.86.7","70:d9:31:c4:05:de","2405:4800:309f:1db5:0000:0000:0000:0000/64","0","0","119470252","0","2195580203","0" """,
-      """ "ACTALIVE","Dec 01 2017 13:59:59","HCM-MP06-1","-930271376","Lddsl-161001-360","2","10","100","0","323994","1.54.136.213","4c:f2:bf:43:2b:0a","2405:4800:5a84:df92:0000:0000:0000:0000/64","0","0","1714387855","0","1813300587","5" """,
-      """ "ACTALIVE","Dec 01 2017 14:59:59","HCM-MP06-1","732492071","sgfdl-151006-056","2","80","1100","0","539973","100.106.36.93","70:d9:31:6e:d1:de","2405:4800:5a97:0925:0000:0000:0000:0000/64","0","0","411622520","0","3380674348","1" """,
-      """ "ACTALIVE","Dec 01 2017 15:59:59","HCM-MP06-1","1846345404","Lddsl-161001-360","2","70","1000","0","712771","42.116.210.125","4c:f2:bf:77:c8:b6","2405:4800:5a84:c533:0000:0000:0000:0000/64","0","0","191347017","1","4051559148","31" """)
-    
-    val day = "2017-12-01"
-    val path = "radius-log-sample.csv"
-    val sparkSession = SparkSession.builder().appName("local").master("local[4]").getOrCreate()
-    val sc = sparkSession.sparkContext
-
-    val lines = sc.parallelize(data, 1) //sc.textFile(path, 1)
-    val logs = lines.map(x => Parser.parse(x, day)).filter(x => x.isInstanceOf[LoadLog])
-
-    val loadStats = logs.map(x => LoadStats(x.asInstanceOf[LoadLog]))
-    
-    val rdd = Functions.calculateLoad(sparkSession, loadStats, MAX_INT, THRESHOLD)
-    //val encoder = Encoders.bean(classOf[LoadStats])
-
-    //val rdd = df.as[LoadStats](encoder).rdd
-
-    rdd.foreach(println)//.asInstanceOf[Dataset[LoadStats]]
-  }
+//  private def runLocal() {
+//    val MAX_INT = 1500
+//    val THRESHOLD = 1100
+//    val data = Array(
+//      """ "ACTALIVE","Dec 01 2017 06:59:59","LDG-MP01-2","796176075","Lddsl-161001-360","1","100","1200","0","1011598","100.91.231.187","64:d9:54:82:37:e4","","0","0","0","0","0","0" """,
+//      """ "ACTALIVE","Dec 01 2017 08:59:59","HCM-MP01-1","1670917756","sgfdl-151006-056","1","90","900","0","1","118.69.111.14","00:0d:48:0e:33:02","","0","0","0","0","0","0" """,
+//      """ "ACTALIVE","Dec 01 2017 09:59:59","LDG-MP01-2","-1655374348","Lddsl-161001-360","1","50","500","0","445786","100.91.228.125","64:d9:54:bf:b8:28","","0","0","0","0","0","0" """,
+//      """ "ACTALIVE","Dec 01 2017 10:59:59","LDG-MP01-2","1309903068","sgfdl-151006-056","1","60","1200","0","445789","100.91.228.118","a0:f3:c1:42:41:f7","","0","0","0","0","0","0" """,
+//      """ "ACTALIVE","Dec 01 2017 11:59:59","HCM-MP06-1","192765439","sgfdl-151006-056","1","30","120","0","323988","183.80.167.92","4c:f2:bf:69:ea:72","2405:4800:5a84:df95:0000:0000:0000:0000/64","0","0","1246050250","0","3191306576","1" """,
+//      """ "ACTLOGOF","Dec 01 2017 12:59:59","DNG-MP01-1","-247656230","Lddsl-161001-360","1","0","120","10","48293","100.99.86.7","70:d9:31:c4:05:de","2405:4800:309f:1db5:0000:0000:0000:0000/64","0","0","119470252","0","2195580203","0" """,
+//      """ "ACTALIVE","Dec 01 2017 13:59:59","HCM-MP06-1","-930271376","Lddsl-161001-360","2","10","100","0","323994","1.54.136.213","4c:f2:bf:43:2b:0a","2405:4800:5a84:df92:0000:0000:0000:0000/64","0","0","1714387855","0","1813300587","5" """,
+//      """ "ACTALIVE","Dec 01 2017 14:59:59","HCM-MP06-1","732492071","sgfdl-151006-056","2","80","1100","0","539973","100.106.36.93","70:d9:31:6e:d1:de","2405:4800:5a97:0925:0000:0000:0000:0000/64","0","0","411622520","0","3380674348","1" """,
+//      """ "ACTALIVE","Dec 01 2017 15:59:59","HCM-MP06-1","1846345404","Lddsl-161001-360","2","70","1000","0","712771","42.116.210.125","4c:f2:bf:77:c8:b6","2405:4800:5a84:c533:0000:0000:0000:0000/64","0","0","191347017","1","4051559148","31" """)
+//    
+//    val day = "2017-12-01"
+//    val path = "radius-log-sample.csv"
+//    val sparkSession = SparkSession.builder().appName("local").master("local[4]").getOrCreate()
+//    val sc = sparkSession.sparkContext
+//
+//    val lines = sc.parallelize(data, 1) //sc.textFile(path, 1)
+//    val logs = lines.map(x => Parser.parse(x, day)).filter(x => x.isInstanceOf[LoadLog])
+//
+//    val loadStats = logs.map(x => LoadStats(x.asInstanceOf[LoadLog]))
+//    
+//    val rdd = Functions.calculateLoad(sparkSession, loadStats, MAX_INT, THRESHOLD)
+//    //val encoder = Encoders.bean(classOf[LoadStats])
+//
+//    //val rdd = df.as[LoadStats](encoder).rdd
+//
+//    rdd.foreach(println)//.asInstanceOf[Dataset[LoadStats]]
+//  }
   
   
 }

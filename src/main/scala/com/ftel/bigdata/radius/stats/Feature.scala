@@ -5,6 +5,7 @@ import org.apache.spark.sql.SparkSession
 import com.ftel.bigdata.utils.DateTimeUtil
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.Row
+import com.ftel.bigdata.utils.HdfsUtil
 
 object Feature {
   def main(args: Array[String]) {
@@ -16,12 +17,14 @@ object Feature {
     
     val sample2 = Array(
         Difference("A", 100, 200, 300, 400),
-        Difference("C", 100, 200, 300, 400)
+        Difference("C", 100, 200, 300, 400),
+        Difference("E", 100, 200, 300, 400)
     )
     
     val sample3 = Array(
         Difference("A", 1000, 2000, 3000, 4000),
-        Difference("B", 1000, 2000, 3000, 4000)
+        Difference("B", 1000, 2000, 3000, 4000),
+        Difference("D", 1000, 2000, 3000, 4000)
     )
     
     val sc = Configure.getSparkContextLocal()
@@ -51,7 +54,8 @@ object Feature {
 //       .join(df3, df1.col("name") === df3.col("name"), "full").drop(df3.col("name"))
 //       .show
     
-    arr.reduce((x,y) => x.join(y, x.col("name") === y.col("name")).drop(x.col("name"))).show
+    //arr.reduce((x,y) => x.join(y, x.col("name") === y.col("name"), "full").drop(x.col("name"))).show
+    join(arr).show
   }
   
   
@@ -69,19 +73,22 @@ object Feature {
     
     //val session = Session.calFor28DaysInMonth(sparkSession, month)
     val df = merge(Array(read(sparkSession, dateTime.plusDays(indexBegin).toString(DateTimeUtil.YMD))), indexBegin+1)// :+ session
-    
-    df.reduce((x,y) => x.join(y, x.col("name") === y.col("name")).drop(x.col("name")))
-      //.coalesce(32)
-      .write
+    join(df).write
       .option("header", "true")
       .csv(s"/data/radius/feature/multiply-files/${month}")
+    
+//    df.reduce((x,y) => x.join(y, x.col("name") === y.col("name")).drop(x.col("name")))
+//      //.coalesce(32)
+//      .write
+//      .option("header", "true")
+//      .csv(s"/data/radius/feature/multiply-files/${month}")
       
     mergeFeatureFiles(sparkSession, month)
   }
   
   def mergeFeatureFiles(sparkSession: SparkSession, month: String) {
     val df = sparkSession.read.option("header", "true").csv(s"/data/radius/feature/multiply-files/${month}")
-    val session = Session.calFor28DaysInMonth(sparkSession, month)
+    val session = Session.calForOneMonth(sparkSession, month)
     df.join(session, df.col("name") === session.col("name"))
       .drop(session.col("name"))
       .write.option("header", "true").csv(s"/data/radius/feature/${month}-temp")
@@ -89,6 +96,11 @@ object Feature {
     df2.coalesce(1).write.option("header", "true").csv(s"/data/radius/feature/${month}")
   }
   
+  private def join(arr: Array[Dataset[Row]]) = {
+    //arr.reduce((x,y) => x.join(y, x.col("name") === y.col("name"), "full").drop(y.col("name")))//.show
+    arr.reduce((x,y) => x.join(y, Seq("name"), "full"))//.show
+  }
+
 //  private def calAttend() {
 //    
 //  }

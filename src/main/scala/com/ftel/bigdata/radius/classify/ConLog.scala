@@ -4,6 +4,7 @@ import com.ftel.bigdata.radius.utils.BrasUtil
 import com.ftel.bigdata.utils.Parameters.TAB
 import com.ftel.bigdata.utils.DateTimeUtil
 import org.joda.time.DateTime
+import com.ftel.bigdata.utils.Parameters
 
 /**
  * 07:02:23 000005B8 Acct-Local:LogOff: Hndsl-131014-079, HN-MP02-8, xe-3/1/1.3105:3105#HNIP48702GC57 PON 0/1/103 4cf2bf8db466 3105 CIGGe3926089, C701162
@@ -30,7 +31,7 @@ case class ConLog(
     vlan: Int,
     serialONU: String,
     text: String) extends AbstractLog {
-  override def get() = "con/" + typeLog.toLowerCase()
+  
   def this(timestamp: Long, session: String, typeLog: String, name: String, nasName: String, text: String) = this(timestamp, session, typeLog, name, nasName, new Card(), new Cable(), null, 0, null, text)
   override def toString = Array(
       timestamp,
@@ -44,9 +45,10 @@ case class ConLog(
       vlan,
       serialONU,
       text).mkString(TAB)
+ 
       
   //override def toString = "CONLOG-TEST-STREAMING: "
-      
+  override def get() = "con/" + typeLog.toLowerCase()
   override def getKey() = {
     val date = DateTimeUtil.create(timestamp / 1000L)
     "day=" + date.toString("yyyy-MM-dd") +
@@ -54,6 +56,26 @@ case class ConLog(
     "/hour=" + date.toString("HH") +
     "/" + date.toString("mm")
   }
+  override def getTimestamp(): Long = timestamp
+  override def toES = Map(
+      "type" -> "con",
+      "timestamp" -> DateTimeUtil.create(timestamp / 1000L).toString(Parameters.ES_5_DATETIME_FORMAT),
+      "session" -> session,
+      "typeLog" -> typeLog,
+      "name" -> name,
+      "nasName" -> nasName,
+      "card.id" -> card.id,
+      "card.lineId" -> card.lineId,
+      "card.port" -> card.port,
+      "card.vlan" -> card.vlan,
+      "card.olt" -> card.olt,
+      "cable.number" -> cable.number,
+      "cable.ontId" -> cable.ontId,
+      "cable.indexId" -> cable.indexId,
+      "mac" -> mac,
+      "vlan" -> vlan,
+      "serialONU" -> serialONU,
+      "text" -> text)
 }
 
 /**
@@ -132,14 +154,15 @@ object ConLog {
   private val LOGOFF = "Acct-Local:LogOff:" -> "LogOff"
   private val REJECT = "Auth-Local:Reject:" -> "Reject"
   
-  def apply(line: String, day: String): AbstractLog = {
+  def apply(line: String, timestamp: Long): AbstractLog = {
     
     val arr = line.split(",")
     val size = arr.size
     //println("===============> " + line + "[" + day + "] [" + Parser.DATE_TIME_PATTERN_NOMALIZE + s"] [$size]")
     if (size >= SIZE_LENGTH_COMMA) {
       val arrOne = arr(0).split(" ")
-      val timestamp: Long = DateTimeUtil.create(day + " " + arrOne(0), Parser.DATE_TIME_PATTERN_NOMALIZE).getMillis()
+      val day = DateTimeUtil.create(timestamp / 1000).toString(DateTimeUtil.YMD)
+      val newTimestamp: Long = DateTimeUtil.create(day + " " + arrOne(0), Parser.DATE_TIME_PATTERN_NOMALIZE).getMillis()
       val session: String = arrOne(1)
       val typeLog: String = getType(arrOne(2))
       val name: String = arrOne.slice(3, arrOne.length).mkString
@@ -155,18 +178,18 @@ object ConLog {
 //      println(s"[$line] text===> " + text)
 //      println(s"[$line] remain===> " + remain)
       if (typeLog != null) {
-        if (typeLog == REJECT._2) new ConLog(timestamp, session, typeLog, name, nasName, text + "," + remain)
+        if (typeLog == REJECT._2) new ConLog(newTimestamp, session, typeLog, name, nasName, text + "," + remain)
         else if (typeLog == SIGNIN._2 || typeLog == LOGOFF._2) {
           try {
-            val con = getConLog(timestamp, session, typeLog, name, nasName, text, remain)
+            val con = getConLog(newTimestamp, session, typeLog, name, nasName, text, remain)
             //println("CON: " + con)
             con
           } catch {
-            case e: Exception => println("Line: " + line); ErrLog(DateTimeUtil.create(day, DateTimeUtil.YMD), line)
+            case e: Exception => println("Line: " + line); ErrLog(timestamp, line)
           }
-        } else new ErrLog(day, line)
-      } else new ErrLog(day, line)
-    } else new ErrLog(day, line)
+        } else new ErrLog(timestamp, line)
+      } else new ErrLog(timestamp, line)
+    } else new ErrLog(timestamp, line)
   }
 
   private def getConLog(timestamp: Long, session: String, typeLog: String, name: String, nasName: String, text: String, remain: String): ConLog = {
@@ -243,6 +266,7 @@ object ConLog {
   def apply(line: String): ConLog = {
     val arr = line.split(TAB)
     val i = new AutoIncrease(-1)
+    try {
     ConLog(
       //DateTimeUtil.create(arr(i.get), Parser.DATE_TIME_PATTERN_NOMALIZE),
       arr(i.get).toLong,
@@ -256,6 +280,13 @@ object ConLog {
       arr(i.get).toInt,
       arr(i.get),
       arr(i.get))
+    } catch {
+      case e: Exception => {
+        println("WRONG: " + line);
+        null
+      }
+      
+    }
   }
   
   def main(args: Array[String]) {
@@ -277,7 +308,7 @@ object ConLog {
     //val line = "08:03:23 000005F0 Acct-Local:LogOff: hnfdl-150814-636, HN-MP02-8, xe-0/1/0.3180:3180#HNIP50301GC57 PON 0/2/66 70d931467a96 3180 CIGGf2832866, 32799C9E"
 //    val line = "11:25:46 0000051C Auth-Local:SignIn: Hnfdl-160524-065, HN-MP01-1, xe-0/0/1.3001:3001#GPON PON 0/1 3001, F84693F7"
     val line = "06:59:59 00000758 Auth-Local:SignIn: Lcdsl-140731-355, LCI-MP-01-01, xe-0/1/0.3001:3001#, 4EE815AF"
-    val log = ConLog(line, "2017-12-01")
+    val log = ConLog(line, 1512086400L)
     val line1 = log.toString()
     println(line1)
     val log2 = ConLog(line1)

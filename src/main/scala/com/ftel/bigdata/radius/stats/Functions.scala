@@ -38,9 +38,22 @@ object Functions {
         x.getString(2),
         x.getLong(3),
         x.getLong(4),
-        x.getLong(5),
-        x.getLong(6),
-        x.getLong(7)))
+        x.getLong(5)//,
+        //x.getLong(6),
+        //x.getLong(7)
+        ))
+  }
+  
+  def calculateLoad(sparkSession: SparkSession, loadStats: RDD[LoadStats]): RDD[LoadStats] = {
+    loadStats.filter(x => x.download > 0 && x.upload > 0)
+             .map(x => (x.name + x.sessionId) -> x)
+             .reduceByKey(getLogLastByTime)
+             .map(x => x._2)
+    //null
+  }
+  
+  private def getLogLastByTime = (x: LoadStats, y: LoadStats) => {
+    if (x.timestamp > y.timestamp) x else y
   }
   
   def parseTuple(line: String): (String, (Long, Long)) = {

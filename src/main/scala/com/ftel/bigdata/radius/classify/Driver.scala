@@ -26,7 +26,7 @@ object Driver {
         val dateTime = DateTimeUtil.create(day, DateTimeUtil.YMD).dayOfMonth().withMinimumValue()
         val number = dateTime.dayOfMonth().getMaximumValue()
         (0 until number).map(x => {
-          Parser.run(sc, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
+          Parser.run(sc, dateTime.plusDays(x).getMillis)
           //Merge.run(sc, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
         })
       }
@@ -34,16 +34,16 @@ object Driver {
         val dateTime = DateTimeUtil.create(day, DateTimeUtil.YMD).dayOfMonth().withMinimumValue()
         val number = dateTime.dayOfMonth().getMaximumValue()
         (0 until number).map(x => {
-          Parser.run(sc, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
+          Parser.run(sc, dateTime.plusDays(x).getMillis)
           Merge.run(sc, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
         })
       }
       case "day" => {
-        Parser.run(sc, day)
+        Parser.run(sc, DateTimeUtil.create(day, DateTimeUtil.YMD).getMillis)
         //Merge.run(sc, day)
       }
       case "day-classify-merge" => {
-        Parser.run(sc, day)
+        Parser.run(sc, DateTimeUtil.create(day, DateTimeUtil.YMD).getMillis)
         Merge.run(sc, day)
       }
       case "merge-month" => {
