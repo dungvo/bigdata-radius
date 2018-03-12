@@ -60,7 +60,7 @@ case class LoadLog(
   }
   override def getTimestamp(): Long = timestamp
   override def toES = {
-    //val loadStats = LoadStats(this)
+    val loadStats = LoadStats(this)
     Map(
       "type" -> "load",
       "timestamp" -> DateTimeUtil.create(timestamp / 1000L).toString(Parameters.ES_5_DATETIME_FORMAT),
@@ -81,9 +81,9 @@ case class LoadLog(
       "inputIPv6" -> inputIPv6,
       "inputIPv6G" -> inputIPv6G,
       "outputIPv6" -> outputIPv6,
-      "outputIPv6G" -> outputIPv6G)//,
-      //"download" -> loadStats.download,
-      //"upload" -> loadStats.upload)
+      "outputIPv6G" -> outputIPv6G,
+      "download" -> loadStats.download,
+      "upload" -> loadStats.upload)
       }
 }
 
@@ -120,7 +120,6 @@ object LoadLog {
           nomalize(i.get).toInt)
     } else if (arr.length == 11 || arr.length == 12) {
       //            "Dec 01 2017 19:57:54","MX480-03","-2065400882","Ppdsl-130725-138","44820762","504227037","-509709527","10","259360","100.66.140.102","18:a6:f7:ec:94:87"
-      // "ACTALIVE","Oct 01 2017 06:59:59","KTM-MP01-2","-1639172390","ktdsl-140905-396","3116602","528510406","-904169345","0","739775","100.94.65.35","bc:96:80:36:1a:24","" 
       val nomalize = arr.map(x => BrasUtil.trim(x, "\""))
       //val i = new AutoIncrease(-1)
       //println(nomalize.mkString("\t"))
@@ -145,6 +144,8 @@ object LoadLog {
           0,
           0)
     } else if (arr.length == 13) {
+      // "ACTALIVE","Oct 01 2017 06:59:59","KTM-MP01-2","-1639172390","ktdsl-140905-396","3116602","528510406","-904169345","0","739775","100.94.65.35","bc:96:80:36:1a:24","" 
+      
       val nomalize = arr.map(x => BrasUtil.trim(x, "\""))
       val i = new AutoIncrease(-1)
       //println(nomalize.mkString("\t"))

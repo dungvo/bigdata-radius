@@ -62,7 +62,7 @@ case class ConLog(
       "timestamp" -> DateTimeUtil.create(timestamp / 1000L).toString(Parameters.ES_5_DATETIME_FORMAT),
       "session" -> session,
       "typeLog" -> typeLog,
-      "name" -> name,
+      "name" -> name.toLowerCase(),
       "nasName" -> nasName,
       "card.id" -> card.id,
       "card.lineId" -> card.lineId,

@@ -32,6 +32,8 @@ object Session {
     val path = RadiusParameters.STATS_PATH + s"/${month}-*/session"
     val session = sparkSession.sparkContext.textFile(path, 1)
       .map(x => new Session(x))
+      .filter(x => x.time > 0)
+      .persist(StorageLevel.MEMORY_AND_DISK_SER_2)
       //.filter(x => DateTimeUtil.create(x.day, DateTimeUtil.YMD).getDayOfMonth() <= 28)
 
     val countVal = session.map(x => x.name -> x.id).distinct().map(x => x._1 -> 1).reduceByKey(_+_)

@@ -7,6 +7,8 @@ import org.apache.spark.sql.functions._
 import com.ftel.bigdata.radius.utils.BrasUtil
 
 object Functions {
+  
+  @deprecated
   def calculateLoad(sparkSession: SparkSession, loadStats: RDD[LoadStats], maxValue: Long, threshold: Long): RDD[LoadStats] = {
     import sparkSession.implicits._
     val df = loadStats.toDF
@@ -37,18 +39,20 @@ object Functions {
         x.getString(1),
         x.getString(2),
         x.getLong(3),
-        x.getLong(4),
-        x.getLong(5)//,
+        x.getLong(6),
+        x.getLong(7)//,
         //x.getLong(6),
         //x.getLong(7)
         ))
   }
   
   def calculateLoad(sparkSession: SparkSession, loadStats: RDD[LoadStats]): RDD[LoadStats] = {
-    loadStats.filter(x => x.download > 0 && x.upload > 0)
+    val res = loadStats.filter(x => x.download >= 0 && x.upload >= 0)
              .map(x => (x.name + x.sessionId) -> x)
              .reduceByKey(getLogLastByTime)
              .map(x => x._2)
+    //res.foreach(println)
+    res
     //null
   }
   

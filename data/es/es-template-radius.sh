@@ -129,6 +129,21 @@ PUT _template/template_radius-streaming
 	      },
 	      "outputIPv6G": {
 	        "type": "long"
+	      },
+	      "download": {
+	        "type": "long"
+	      },
+	      "upload": {
+	        "type": "long"
+	      },
+	      "contract": {
+	        "type": "keyword"
+	      },
+	      "province": {
+	        "type": "keyword"
+	      },
+	      "region": {
+	        "type": "keyword"
 	      }
 	    }
 	  },
@@ -194,7 +209,16 @@ PUT _template/template_radius-load
       },
       "upload": {
         "type": "long"
-      }
+      },
+	      "contract": {
+	        "type": "keyword"
+	      },
+	      "province": {
+	        "type": "keyword"
+	      },
+	      "region": {
+	        "type": "keyword"
+	      }
     }
   }
 }

@@ -11,7 +11,7 @@ case class LoadStats(timestamp: Long, name: String, sessionId: String, sessionTi
   def toES() = {
     Map(
       "timestamp" -> DateTimeUtil.create(timestamp / 1000L).toString(Parameters.ES_5_DATETIME_FORMAT),
-      "name" -> name, 
+      "name" -> name.toLowerCase(), 
       "sessionId" -> sessionId,
       "sessionTime" -> sessionTime, 
       "download" -> download, 

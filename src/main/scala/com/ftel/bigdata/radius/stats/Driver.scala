@@ -35,14 +35,14 @@ object Driver {
 //    println(number)
 //    println(dateTime.toString(DateTimeUtil.YMD))
   }
-  val es = new EsConnection("172.27.11.156", 9200, "radius-index", "docs")
+  
   private def run(args: Array[String]) {
     val flag = args(0)
     val day = args(1)
     
     
     val sparkConf = new SparkConf
-    es.configure(sparkConf)
+    //es.configure(sparkConf)
     
     val sparkSession = SparkSession.builder().config(sparkConf).getOrCreate()
 
@@ -57,16 +57,7 @@ object Driver {
       case "day" => {
         run(sparkSession, day)
       }
-      case "es" => {
-        runES(sparkSession, day)
-      }
-      case "es-month" => {
-        val dateTime = DateTimeUtil.create(day, DateTimeUtil.YMD).dayOfMonth().withMinimumValue()
-        val number = dateTime.dayOfMonth().getMaximumValue()
-        (0 until number).map(x => {
-          runES(sparkSession, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
-        })
-      }
+      
 //      case "month" => {
 //        val dateTime = DateTimeUtil.create(day, DateTimeUtil.YMD).dayOfMonth().withMinimumValue()
 //        val number = dateTime.dayOfMonth().getMaximumValue()
@@ -170,29 +161,7 @@ object Driver {
     
   }
   
-  private def runES(sparkSession: SparkSession, day: String) {
-
-    val sc = sparkSession.sparkContext
-    sc.hadoopConfiguration.set("fs.file.impl", classOf[org.apache.hadoop.fs.LocalFileSystem].getName())
-    sc.hadoopConfiguration.set(Parameters.SPARK_READ_DIR_RECURSIVE, "true")
-    val fs = FileSystem.get(sc.hadoopConfiguration)
-    
-    //val path = RadiusParameters.STATS_PATH +  s"/day=${day}/type=load"//Array(
-
-    val path = RadiusParameters.STATS_PATH +  s"/${day}/load-usage"
-
-    val loadStats = sc.textFile(path, 1).map(x => new LoadStats(x))
-    
-    es.save(loadStats.map(x => x.toES()), s"radius-load-${day}", "docs")
-//    //loadStats.saveAsTextFile(s"/data/radius/stats/${day}")
-//    //val rdd = Functions.calculateLoad(sparkSession, loadStats, LoadStats.MAX_INT, LoadStats.THRESHOLD)
-//    val rdd = Functions.calculateLoad(sparkSession, loadStats)
-//      //.filter(x => DateTimeUtil.create(x.timestamp / 1000).toString("yyyy-MM-dd") == day)
-//      .coalesce(32, false, None)
-//      .persist(StorageLevel.MEMORY_AND_DISK_SER_2)
-//    rdd.saveAsTextFile(output + s"/load-usage")
-
-  }
+  
 
   private def runSession(sparkSession: SparkSession, day: String) {
     val previousDay = DateTimeUtil.create(day, "yyyy-MM-dd").minusDays(1).toString("yyyy-MM-dd")
