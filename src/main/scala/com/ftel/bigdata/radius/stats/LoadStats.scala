@@ -8,6 +8,7 @@ case class LoadStats(timestamp: Long, name: String, sessionId: String, sessionTi
   private def this(arr: Array[String]) = this(arr(0).toLong, arr(1), arr(2), arr(3).toLong, arr(4).toLong, arr(5).toLong)
   def this(line: String) = this(line.split("\t"))
   override def toString() = Array(timestamp, name, sessionId, sessionTime, download, upload).mkString("\t")
+//  def toPair = (name, sessionId) -> this(download, upload, sessionTime)
   def toES() = {
     Map(
       "timestamp" -> DateTimeUtil.create(timestamp / 1000L).toString(Parameters.ES_5_DATETIME_FORMAT),

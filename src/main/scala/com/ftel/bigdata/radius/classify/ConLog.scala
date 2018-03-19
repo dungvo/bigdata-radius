@@ -61,17 +61,17 @@ case class ConLog(
       "type" -> "con",
       "timestamp" -> DateTimeUtil.create(timestamp / 1000L).toString(Parameters.ES_5_DATETIME_FORMAT),
       "session" -> session,
-      "typeLog" -> typeLog,
-      "name" -> name.toLowerCase(),
-      "nasName" -> nasName,
+      "typeLog" -> typeLog,              // contype -> signin, logoff, reject
+      "name" -> name.toLowerCase(),      // name
+      "nasName" -> nasName,              // bras-id
       "card.id" -> card.id,
       "card.lineId" -> card.lineId,
       "card.port" -> card.port,
       "card.vlan" -> card.vlan,
-      "card.olt" -> card.olt,
+      "card.olt" -> card.olt,            // host
       "cable.number" -> cable.number,
-      "cable.ontId" -> cable.ontId,
-      "cable.indexId" -> cable.indexId,
+      "cable.ontId" -> cable.ontId,      // module
+      "cable.indexId" -> cable.indexId,  // index
       "mac" -> mac,
       "vlan" -> vlan,
       "serialONU" -> serialONU,
@@ -150,9 +150,9 @@ object ConLog {
    */
   private val SIZE_LENGTH_COMMA = 3
   
-  private val SIGNIN = "Auth-Local:SignIn:" -> "SignIn"
-  private val LOGOFF = "Acct-Local:LogOff:" -> "LogOff"
-  private val REJECT = "Auth-Local:Reject:" -> "Reject"
+  val SIGNIN = "Auth-Local:SignIn:" -> "SignIn"
+  val LOGOFF = "Acct-Local:LogOff:" -> "LogOff"
+  val REJECT = "Auth-Local:Reject:" -> "Reject"
   
   def apply(line: String, timestamp: Long): AbstractLog = {
     
@@ -222,7 +222,7 @@ object ConLog {
         ConLog(timestamp, session, typeLog, name, nasName, card, cable, mac, vlan, serialONU, remain)
       }
       case 5 => {
-        val nasName: String = BrasUtil.getHostnameNoc(arr(0))
+        //val nasName: String = BrasUtil.getHostnameNoc(arr(0))
         val card = Card(arr(1).trim())
         val cable = new Cable()
         val mac = null //arr(4)
@@ -233,7 +233,7 @@ object ConLog {
         ConLog(timestamp, session, typeLog, name, nasName, card, cable, mac, vlan, serialONU, textRemain)
       }
       case 3 => {
-        val nasName: String = BrasUtil.getHostnameNoc(arr(0))
+        //val nasName: String = BrasUtil.getHostnameNoc(arr(0))
         val card = Card(arr(1).trim())
         val cable = new Cable() //new Cable(arr(3).split("/"))
         val mac = null //arr(4)
@@ -307,7 +307,8 @@ object ConLog {
     //val line = "09:39:24 000013B4 Auth-Local:SignIn: Bedsl-160927-319, BTE-MP01-1, xe-0/1/0.1055:1055#BTEP00201ES60 atm 15/30:0.33:1055, 5282DD83, Limit 110 minutes"
     //val line = "08:03:23 000005F0 Acct-Local:LogOff: hnfdl-150814-636, HN-MP02-8, xe-0/1/0.3180:3180#HNIP50301GC57 PON 0/2/66 70d931467a96 3180 CIGGf2832866, 32799C9E"
 //    val line = "11:25:46 0000051C Auth-Local:SignIn: Hnfdl-160524-065, HN-MP01-1, xe-0/0/1.3001:3001#GPON PON 0/1 3001, F84693F7"
-    val line = "06:59:59 00000758 Auth-Local:SignIn: Lcdsl-140731-355, LCI-MP-01-01, xe-0/1/0.3001:3001#, 4EE815AF"
+//    val line = "06:59:59 00000758 Auth-Local:SignIn: Lcdsl-140731-355, LCI-MP-01-01, xe-0/1/0.3001:3001#, 4EE815AF"
+    val line = "03:07:39 000014EC Acct-Local:LogOff: vldsl-160205-997, VLG-MP01-2, xe-0/1/0.335:335#VLGP00402ES60 atm 3/17:0.33:335, 6D91E1DA"
     val log = ConLog(line, 1512086400L)
     val line1 = log.toString()
     println(line1)

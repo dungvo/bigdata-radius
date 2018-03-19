@@ -17,6 +17,8 @@ import org.apache.hadoop.fs.FileSystem
 import com.ftel.bigdata.radius.RadiusParameters
 import com.ftel.bigdata.spark.es.EsConnection
 import org.apache.spark.SparkConf
+import org.joda.time.Days
+import org.apache.spark.SparkContext
 
 object Driver {
 
@@ -47,6 +49,28 @@ object Driver {
     val sparkSession = SparkSession.builder().config(sparkConf).getOrCreate()
 
     flag match {
+      case "range" => {
+        
+        val sc = sparkSession.sparkContext
+        sc.hadoopConfiguration.set("fs.file.impl", classOf[org.apache.hadoop.fs.LocalFileSystem].getName())
+        sc.hadoopConfiguration.set(Parameters.SPARK_READ_DIR_RECURSIVE, "true")
+    
+        val from = DateTimeUtil.create(day, DateTimeUtil.YMD)
+        val to = DateTimeUtil.create(args(2), DateTimeUtil.YMD)
+        
+        val days = (0 until Days.daysBetween(from, to).getDays + 1)
+        days.map(x => from.plusDays(x).toString(DateTimeUtil.YMD))
+            .foreach(x => {
+              println(s"====== Processing for $x ==========")
+              calLoadUsage(sparkSession, sc, x)
+              val rdd = Metric.cal(sparkSession, sc, x)
+              Session.save(rdd, x)
+              DownUp.save(rdd, x)
+              Difference.save(sparkSession, x)
+              println(s"====== Finished for $x ==========")
+            })
+      }
+      
       case "month" => {
         val dateTime = DateTimeUtil.create(day, DateTimeUtil.YMD).dayOfMonth().withMinimumValue()
         val number = dateTime.dayOfMonth().getMaximumValue()
@@ -101,6 +125,13 @@ object Driver {
         
       }
       
+       case "metric-month" => {
+        val dateTime = DateTimeUtil.create(day, DateTimeUtil.YMD).dayOfMonth().withMinimumValue()
+        val number = dateTime.dayOfMonth().getMaximumValue()
+        (0 until number).map(x => {
+          Metric.save(sparkSession, dateTime.plusDays(x).toString(DateTimeUtil.YMD))
+        })
+      }
       
     }
   }
@@ -161,7 +192,18 @@ object Driver {
     
   }
   
-  
+  private def calLoadUsage(sparkSession: SparkSession, sc: SparkContext, day: String) {
+    val fs = FileSystem.get(sc.hadoopConfiguration)
+    val path = RadiusParameters.CLASSIFY_PATH +  s"/day=${day}/type=load"
+    
+    val output = RadiusParameters.STATS_PATH +  s"/${day}/load-usage"
+    if (!HdfsUtil.isExist(fs, output)) {
+      val loadStats = sc.textFile(path, 1).map(x => LoadLog(x)).map(x => LoadStats(x))
+      Functions.calculateLoad(sparkSession, loadStats).coalesce(32, false, None).saveAsTextFile(output + s"/load-usage")
+    } else {
+      println(s"=====> This $output have already exist!")
+    }
+  }
 
   private def runSession(sparkSession: SparkSession, day: String) {
     val previousDay = DateTimeUtil.create(day, "yyyy-MM-dd").minusDays(1).toString("yyyy-MM-dd")

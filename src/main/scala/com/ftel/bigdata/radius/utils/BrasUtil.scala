@@ -16,7 +16,8 @@ object BrasUtil {
   private val BRAS_RADIUS_MAPPING = BRAS_MAPPING.map(x => x.hostnameRadius -> x.hostnameNoc).toMap
   
   def getHostnameNoc(hostnameRadius: String): String = {
-    BRAS_RADIUS_MAPPING.getOrElse(trim(hostnameRadius.trim().toLowerCase(), ","), "N/A")
+    val hostname = trim(hostnameRadius.trim().toLowerCase(), ",")
+    BRAS_RADIUS_MAPPING.getOrElse(hostname, hostname)
   }
   
   private def getBrasMapping(): Array[BrasMapping] = {

@@ -19,7 +19,7 @@ case class LoadLog(
   input: Long,             // (Upload)
   output: Long,            // (Download)
   termCode: Int,
-  sessionTime: Long,
+  sessionTime: Long,       // unit is second 
   ipAddress: String,
   callerID: String,          // MacAdddress
   ipv6Address: String,

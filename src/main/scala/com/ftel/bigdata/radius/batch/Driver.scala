@@ -13,19 +13,44 @@ import com.ftel.bigdata.utils.StringUtil
 import com.ftel.bigdata.radius.classify.RawLog
 import org.apache.spark.storage.StorageLevel
 import com.ftel.bigdata.utils.ESUtil
+import com.ftel.bigdata.radius.classify.Parser
 
 object Driver {
   def main(args: Array[String]) {
+    
+//    val i = 91
+//    
+//    println(f"$i%02d")
+//    for (i <- 0 until 24) {
+//            val hourI = f"$i%02d"
+//            //partitionWithRaw(sc, x, day, hour, day, hour)
+//            println(hourI)
+//          }
+    
     val sparkSession = SparkSession.builder().getOrCreate()
     val sc = sparkSession.sparkContext
     sc.hadoopConfiguration.set("fs.file.impl", classOf[org.apache.hadoop.fs.LocalFileSystem].getName())
     sc.hadoopConfiguration.set(Parameters.SPARK_READ_DIR_RECURSIVE, "true")
 
-    val day = args(0)
-    val hour = args(1)
-    val types = args(2).split(",")
+    val flag = args(0)
+    val day = args(1)
+    val hour = args(2)
+    val types = args(3).split(",")
     //types.map(x => check(sc, x, day, hour, day, hour))
-    types.map(x => partition(sc, x, day, hour))
+    //types.map(x => partition(sc, x, day, hour))
+    flag match {
+      case "raw" => types.map(x => {
+          partitionWithRaw(sc, x, day, hour, day, hour)
+        })
+      case "raw-all" => types.map(x => {
+          for (i <- 0 until 24) {
+            val hourI = f"$i%02d"
+            partitionWithRaw(sc, x, day, hour, day, hourI)
+          }
+        })
+      case "type" => types.map(x => partition(sc, x, day, hour))
+    }
+    
     //partition(sc, "load", day, hour)
     //partition(sc, "con", day, hour)
     //partition(sc, "err", day, hour)
@@ -90,6 +115,49 @@ object Driver {
 //    
 //    partition(sc, logType, path, dayFilter, hourFilter)
 //  }
+  
+  private def partitionWithRaw(sc: SparkContext, logType: String, day: String, hour: String, dayFilter: String, hourFilter: String) {
+    val previous = DateTimeUtil.create(s"${day}-${hour}", "yyyy-MM-dd-HH").minusHours(1)
+    
+    val prevDay = previous.toString("yyyy-MM-dd")
+    val prevHour = previous.toString("HH")
+    
+    val path = Array(
+        s"/data/radius/streaming/raw/${day}/${hour}",
+        s"/data/radius/streaming/raw/${prevDay}/${prevHour}"
+        //s"/data/radius/streaming/${logType}/${prevDay}/${prevHour}/5*" // Lấy những phút cuối của giờ trước vì có 1 số message con nằm trong giờ này
+        ).mkString(",")
+    println("Input Path: " + path)
+    val output = s"/data/radius/partition/${logType}/${dayFilter}/${hourFilter}"
+    val filter = (x: AbstractLog) => {
+      val date = DateTimeUtil.create(x.getTimestamp() / 1000)
+      (date.toString("yyyy-MM-dd") == dayFilter && date.toString("HH") == hourFilter)
+    }
+    val lines = sc.textFile(path, 1).filter(x => StringUtil.isNotNullAndEmpty(x)).persist(StorageLevel.MEMORY_AND_DISK_SER_2)
+    println("COUNT: " + lines.count)
+    val rdd: RDD[AbstractLog] = logType match {
+      case "load" => lines.map(x => LoadLog(x))
+      case "con"  => lines.map(x => RawLog(x)).map(x => Parser.parse(x.text, x.timestamp)).filter(x => x.isInstanceOf[ConLog]).map(x => x.asInstanceOf[ConLog])
+      case "err"  => lines.map(x => ErrLog(x))
+      case "raw"  => lines.map(x => RawLog(x))
+    }
+    
+    val rddCache = rdd.persist(StorageLevel.MEMORY_AND_DISK_SER_2)
+    
+    
+    
+    rddCache.filter(x => x!= null)
+      .filter(filter)
+      .coalesce(32, false, None).saveAsTextFile(output)
+      
+    // Write data to Elasticsearch for monitor
+    
+    //val client = ESUtil.getClient("172.27.11.156", 9200)
+    //ESUtil.upset(client, "radius-tracking", "docs", Map("line" -> countLine, "parse" -> countParse), day)
+    //println(s"[${day}] Line: ${countLine}, Parse: ${countParse}")
+  }
+  
+  
   
   private def partition(sc: SparkContext, logType: String, day: String, hour: String, dayFilter: String, hourFilter: String) {
     val previous = DateTimeUtil.create(s"${day}-${hour}", "yyyy-MM-dd-HH").minusHours(1)

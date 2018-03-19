@@ -36,21 +36,29 @@ object Session {
       .persist(StorageLevel.MEMORY_AND_DISK_SER_2)
       //.filter(x => DateTimeUtil.create(x.day, DateTimeUtil.YMD).getDayOfMonth() <= 28)
 
-    val countVal = session.map(x => x.name -> x.id).distinct().map(x => x._1 -> 1).reduceByKey(_+_)
-    val minVal = session.map(x => x.name -> x.time).reduceByKey(Math.min)
-    val maxVal = session.map(x => x.name -> x.time).reduceByKey(Math.max)
-    val meanVal = session.map(x => x.name -> x.time.toDouble).groupByKey().map(x => x._1 -> mean(x._2))
-    val stdVal = session.map(x => x.name -> x.time.toDouble).groupByKey().map(x => x._1 -> std(x._2))
-    
-    val pathLoad = RadiusParameters.CLASSIFY_PATH + s"/day=${month}-*/type=load"
-    val sc = sparkSession.sparkContext
-    sc.hadoopConfiguration.set("fs.file.impl", classOf[org.apache.hadoop.fs.LocalFileSystem].getName())
-    sc.hadoopConfiguration.set(Parameters.SPARK_READ_DIR_RECURSIVE, "true")
-    
     val attendVal = session.map(x => x.name -> x.day)
       .distinct()
       .map(x => x._1 -> 1)
       .reduceByKey(_+_)
+      
+    val sessionSumTime = session
+      .map(x => (x.name + x.id) -> x)
+      .reduceByKey((x,y) => Session(x.day, y.name, y.id, x.time + y.time))
+      .map(x => x._2)
+      .persist(StorageLevel.MEMORY_AND_DISK_SER_2)
+      
+    val countVal = sessionSumTime.map(x => x.name -> x.id).distinct().map(x => x._1 -> 1).reduceByKey(_+_)
+    val minVal = sessionSumTime.map(x => x.name -> x.time).reduceByKey(Math.min)
+    val maxVal = sessionSumTime.map(x => x.name -> x.time).reduceByKey(Math.max)
+    val meanVal = sessionSumTime.map(x => x.name -> x.time.toDouble).groupByKey().map(x => x._1 -> mean(x._2))
+    val stdVal = sessionSumTime.map(x => x.name -> x.time.toDouble).groupByKey().map(x => x._1 -> std(x._2))
+    
+//    val pathLoad = RadiusParameters.CLASSIFY_PATH + s"/day=${month}-*/type=load"
+//    val sc = sparkSession.sparkContext
+//    sc.hadoopConfiguration.set("fs.file.impl", classOf[org.apache.hadoop.fs.LocalFileSystem].getName())
+//    sc.hadoopConfiguration.set(Parameters.SPARK_READ_DIR_RECURSIVE, "true")
+    
+    
 
     import sparkSession.implicits._
     countVal.join(minVal)
@@ -61,37 +69,37 @@ object Session {
       .toDF("name", "Session_COUNT", "Sesion_MIN", "Sesion_MAX", "ssOnline_Mean", "ssOnline_Std", "Attend")
   }
   
-  def calFor28DaysInMonth(sparkSession: SparkSession, month: String) = {
-    val path = RadiusParameters.CLASSIFY_PATH + s"/${month}-*/session"
-    val session = sparkSession.sparkContext.textFile(path, 1)
-      .map(x => new Session(x))
-      .filter(x => DateTimeUtil.create(x.day, DateTimeUtil.YMD).getDayOfMonth() <= 28)
-      .persist(StorageLevel.MEMORY_AND_DISK_SER_2)
-
-    val countVal = session.map(x => x.name -> x.id).distinct().map(x => x._1 -> 1).reduceByKey(_+_)
-    val minVal = session.map(x   => x.name -> x.time).reduceByKey(Math.min)
-    val maxVal = session.map(x   => x.name -> x.time).reduceByKey(Math.max)
-    val meanVal = session.map(x  => x.name -> x.time.toDouble).groupByKey().map(x => x._1 -> mean(x._2))
-    val stdVal = session.map(x   => x.name -> x.time.toDouble).groupByKey().map(x => x._1 -> std(x._2))
-    
-//    val pathLoad = s"/data/radius/classify/day=${month}-*/type=load"
-//    val sc = sparkSession.sparkContext
-//    sc.hadoopConfiguration.set("fs.file.impl", classOf[org.apache.hadoop.fs.LocalFileSystem].getName())
-//    sc.hadoopConfiguration.set(Parameters.SPARK_READ_DIR_RECURSIVE, "true")
-    
-    val attendVal = session.map(x => x.name -> x.day)
-      .distinct()
-      .map(x => x._1 -> 1)
-      .reduceByKey(_+_)
-
-    import sparkSession.implicits._
-    countVal.join(minVal)
-      .join(maxVal).map(x => x._1 -> (x._2._1._1, x._2._1._2, x._2._2))
-      .join(meanVal).map(x => x._1 -> (x._2._1._1, x._2._1._2, x._2._1._3, x._2._2))
-      .join(stdVal).map(x => x._1 -> (x._2._1._1, x._2._1._2, x._2._1._3, x._2._1._4, x._2._2))
-      .join(attendVal).map(x => (x._1, x._2._1._1, x._2._1._2, x._2._1._3, x._2._1._4, x._2._1._5, x._2._2))
-      .toDF("name", "Session_COUNT", "Sesion_MIN", "Sesion_MAX", "ssOnline_Mean", "ssOnline_Std", "Attend")
-  }
+//  def calFor28DaysInMonth(sparkSession: SparkSession, month: String) = {
+//    val path = RadiusParameters.CLASSIFY_PATH + s"/${month}-*/session"
+//    val session = sparkSession.sparkContext.textFile(path, 1)
+//      .map(x => new Session(x))
+//      .filter(x => DateTimeUtil.create(x.day, DateTimeUtil.YMD).getDayOfMonth() <= 28)
+//      .persist(StorageLevel.MEMORY_AND_DISK_SER_2)
+//
+//    val countVal = session.map(x => x.name -> x.id).distinct().map(x => x._1 -> 1).reduceByKey(_+_)
+//    val minVal = session.map(x   => x.name -> x.time).reduceByKey(Math.min)
+//    val maxVal = session.map(x   => x.name -> x.time).reduceByKey(Math.max)
+//    val meanVal = session.map(x  => x.name -> x.time.toDouble).groupByKey().map(x => x._1 -> mean(x._2))
+//    val stdVal = session.map(x   => x.name -> x.time.toDouble).groupByKey().map(x => x._1 -> std(x._2))
+//    
+////    val pathLoad = s"/data/radius/classify/day=${month}-*/type=load"
+////    val sc = sparkSession.sparkContext
+////    sc.hadoopConfiguration.set("fs.file.impl", classOf[org.apache.hadoop.fs.LocalFileSystem].getName())
+////    sc.hadoopConfiguration.set(Parameters.SPARK_READ_DIR_RECURSIVE, "true")
+//    
+//    val attendVal = session.map(x => x.name -> x.day)
+//      .distinct()
+//      .map(x => x._1 -> 1)
+//      .reduceByKey(_+_)
+//
+//    import sparkSession.implicits._
+//    countVal.join(minVal)
+//      .join(maxVal).map(x => x._1 -> (x._2._1._1, x._2._1._2, x._2._2))
+//      .join(meanVal).map(x => x._1 -> (x._2._1._1, x._2._1._2, x._2._1._3, x._2._2))
+//      .join(stdVal).map(x => x._1 -> (x._2._1._1, x._2._1._2, x._2._1._3, x._2._1._4, x._2._2))
+//      .join(attendVal).map(x => (x._1, x._2._1._1, x._2._1._2, x._2._1._3, x._2._1._4, x._2._1._5, x._2._2))
+//      .toDF("name", "Session_COUNT", "Sesion_MIN", "Sesion_MAX", "ssOnline_Mean", "ssOnline_Std", "Attend")
+//  }
   
   /**
    * Calculate variance for Array

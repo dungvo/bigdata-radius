@@ -42,7 +42,7 @@ object Difference {
   }
 
   def save(sparkSession: SparkSession, day: String) {
-    val previousDay = DateTimeUtil.create(day, "yyyy-MM-dd").minusDays(1).toString("yyyy-MM-dd")
+    val previousDay = DateTimeUtil.create(day, DateTimeUtil.YMD).minusDays(1).toString(DateTimeUtil.YMD)
     val sc = sparkSession.sparkContext
     val fs = FileSystem.get(sc.hadoopConfiguration)
     if (HdfsUtil.isExist(fs, s"/data/radius/stats/${previousDay}/download-upload")) {

@@ -82,6 +82,9 @@ class ConLogSuite extends FunSuite {
     lines.foreach(x => {
       val log = ConLog(x, DateTimeUtil.create("2018-01-31", DateTimeUtil.YMD).getMillis )
       assert(log.isInstanceOf[ConLog])
+      assert(!log.asInstanceOf[ConLog].nasName.contains("xe"))
+      println("BRAS: " + log.asInstanceOf[ConLog].nasName)
+      println("BRAS: " + log.asInstanceOf[ConLog].toString())
     })
   }
 
