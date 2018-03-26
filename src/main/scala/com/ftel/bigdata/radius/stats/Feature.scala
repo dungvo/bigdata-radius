@@ -6,6 +6,7 @@ import com.ftel.bigdata.utils.DateTimeUtil
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.Row
 import com.ftel.bigdata.utils.HdfsUtil
+import com.ftel.bigdata.radius.utils.BytesUtil.bytesToGigabytes
 
 object Feature {
   def main(args: Array[String]) {
@@ -89,16 +90,20 @@ object Feature {
   def mergeFeatureFiles(sparkSession: SparkSession, month: String) {
     val df = sparkSession.read.option("header", "true").csv(s"/data/radius/feature/multiply-files/${month}")
     val session = Session.calForOneMonth(sparkSession, month)
-    df.join(session, df.col("name") === session.col("name"))
-      .drop(session.col("name"))
+    df.join(session, df.col("Name") === session.col("Name"))
+      .drop(session.col("Name"))
       .write.option("header", "true").csv(s"/data/radius/feature/${month}-temp")
     val df2 = sparkSession.read.option("header", "true").csv(s"/data/radius/feature/${month}-temp")
-    df2.coalesce(1).write.option("header", "true").csv(s"/data/radius/feature/${month}")
+    df2.coalesce(1)
+       .write
+       .option("header", "true")
+       
+       .csv(s"/data/radius/feature/${month}")
   }
   
   private def join(arr: Array[Dataset[Row]]) = {
     //arr.reduce((x,y) => x.join(y, x.col("name") === y.col("name"), "full").drop(y.col("name")))//.show
-    arr.reduce((x,y) => x.join(y, Seq("name"), "full"))//.show
+    arr.reduce((x,y) => x.join(y, Seq("Name"), "full"))//.show
   }
 
 //  private def calAttend() {
@@ -124,6 +129,9 @@ object Feature {
 //      .csv(s"/data/radius/feature/${month}")
 //  }
   
+  /**
+   * 'Name','Attend','Session_Count','ssOnline_Min', 'ssOnline_Max','ssOnline_Mean','ssOnline_Std', 'Size1Download','Diff1Download','Size1Upload'
+   */
   private def read(sparkSession: SparkSession, day: String) = {
     val number = DateTimeUtil.create(day, "yyyy-MM-dd").getDayOfMonth()
     import sparkSession.implicits._
@@ -131,6 +139,7 @@ object Feature {
       .textFile(s"/data/radius/stats/${day}/diff", 1)
       .map(x => x.split("\t"))
       .map(x => new Difference(x))
-      .toDF("name", s"Download${number}Size", s"Upload${number}Size", s"Download${number}Diff", s"Upload${number}Diff")
+      .map(x => (x.name, bytesToGigabytes(x.download), bytesToGigabytes(x.upload), bytesToGigabytes(x.downloadDiff), bytesToGigabytes(x.uploadDiff)) )
+      .toDF("Name", s"Size${number}Download", s"Size${number}Upload", s"Diff${number}Download", s"Diff${number}Upload")
   }
 }

@@ -32,6 +32,8 @@ object Session {
     val path = RadiusParameters.STATS_PATH + s"/${month}-*/session"
     val session = sparkSession.sparkContext.textFile(path, 1)
       .map(x => new Session(x))
+      // Có 1 vài dòng log với sessionTime lơn hơn 1 ngày, sẽ gán lại sessionTime của nó là max 1 ngày
+      .map(x => if (x.time > 86400L) Session(x.day, x.name, x.id, 86400L) else x)
       .filter(x => x.time > 0)
       .persist(StorageLevel.MEMORY_AND_DISK_SER_2)
       //.filter(x => DateTimeUtil.create(x.day, DateTimeUtil.YMD).getDayOfMonth() <= 28)
@@ -59,14 +61,14 @@ object Session {
 //    sc.hadoopConfiguration.set(Parameters.SPARK_READ_DIR_RECURSIVE, "true")
     
     
-
+    //'Name','Attend','Session_Count','ssOnline_Min', 'ssOnline_Max','ssOnline_Mean','ssOnline_Std', 'Size1Download','Diff1Download','Size1Upload'
     import sparkSession.implicits._
     countVal.join(minVal)
       .join(maxVal).map(x => x._1 -> (x._2._1._1, x._2._1._2, x._2._2))
       .join(meanVal).map(x => x._1 -> (x._2._1._1, x._2._1._2, x._2._1._3, x._2._2))
       .join(stdVal).map(x => x._1 -> (x._2._1._1, x._2._1._2, x._2._1._3, x._2._1._4, x._2._2))
       .join(attendVal).map(x => (x._1, x._2._1._1, x._2._1._2, x._2._1._3, x._2._1._4, x._2._1._5, x._2._2))
-      .toDF("name", "Session_COUNT", "Sesion_MIN", "Sesion_MAX", "ssOnline_Mean", "ssOnline_Std", "Attend")
+      .toDF("Name", "Session_Count", "ssOnline_Min", "ssOnline_Max", "ssOnline_Mean", "ssOnline_Std", "Attend")
   }
   
 //  def calFor28DaysInMonth(sparkSession: SparkSession, month: String) = {

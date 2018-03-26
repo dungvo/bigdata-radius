@@ -7,6 +7,7 @@ import com.ftel.bigdata.utils.HdfsUtil
 import com.ftel.bigdata.utils.DateTimeUtil
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
+import com.ftel.bigdata.radius.utils.BytesUtil
 
 case class Difference(name: String, download: Long, upload: Long, downloadDiff: Long, uploadDiff: Long) {
   def this(array: Array[String]) = this(array(0), array(1).toLong, array(2).toLong, array(3).toLong, array(4).toLong)
@@ -14,6 +15,7 @@ case class Difference(name: String, download: Long, upload: Long, downloadDiff: 
       name, downup._1, downup._2, diff._1, diff._2
       )
   def toPair = name -> (download, upload, downloadDiff, uploadDiff)
+  
   override def toString = Array(name, download, upload, downloadDiff, uploadDiff).mkString("\t")
 }
 

@@ -31,6 +31,7 @@ import com.ftel.bigdata.radius.classify.AbstractLog
 import core.streaming.RedisClusterClientFactory
 import com.ftel.bigdata.spark.es.EsConnection
 import com.ftel.bigdata.radius.classify.RawLog
+import com.ftel.bigdata.utils.NumberUtil
 
 
 
@@ -134,7 +135,23 @@ object Driver {
         rdd.map(x => RawLog(x.timeStamp, x.message)).saveAsTextFile(prefix + "/raw/" + time.toString(DateTimeUtil.YMD + "/HH/mm/ss"))
 
         if (!local) {
-          esInternal.save(load.filter(x => x!= null).map(x => x.toES()), s"radius-streaming-${time.toString("yyyy-MM-dd")}", "load")
+          val loadWithProvince = load
+            .filter(x => x!= null)
+            .mapPartitions(p => {
+              val redis = new RedisClient("172.27.11.141", 6379)
+              redis.select(15)
+              val res = p.map(x => {
+                val map = redis.hgetall1(x.name.toLowerCase()).getOrElse(Map())
+                x.toES() + 
+                  ("province" -> map.getOrElse("province", "??")) + 
+                  ("region" -> map.getOrElse("region", "??")) + 
+                  ("contract" -> map.getOrElse("contract", "??").toLowerCase())
+              })
+              res
+            }, false)
+      
+          esInternal.save(loadWithProvince, s"radius-streaming-${time.toString("yyyy-MM-dd")}", "load")
+          
           esInternal.save(err.filter(x => x!= null).map(x => x.toES()), s"radius-streaming-${time.toString("yyyy-MM-dd")}", "err")
           esInternal.save(con.filter(x => x!= null).map(x => x.toES()), s"radius-streaming-${time.toString("yyyy-MM-dd")}", "con")
           esInternal.save(rdd.filter(x => x!= null).map(x => RawLog(x.timeStamp, x.message)).map(x => x.toES()), s"radius-streaming-${time.toString("yyyy-MM-dd")}", "raw")
@@ -145,19 +162,33 @@ object Driver {
           val redisNodes = "172.27.11.173:6379,172.27.11.175:6379,172.27.11.176:6379,172.27.11.173:6380,172.27.11.175:6380,172.27.11.176:6380"
           load.foreachPartition(p => {
             val redisClient = RedisClusterClientFactory.getOrCreateClient(redisNodes)
+            //val redis = new RedisClient("172.27.11.141", 6380)
             val kvs: Iterator[(String, String)] = p.map(x => {
               (x.ipAddress, x.name.toLowerCase() + "," + x.timestamp)
             })
             kvs.foreach(kv => {
               try {
                 redisClient.lpush(kv._1, kv._2.toString)
-                redisClient.ltrim(kv._1, 0, 60)
+                redisClient.ltrim(kv._1, 0, 30)
+                
+//                val date = DateTimeUtil.create(NumberUtil.toLong(kv._2.split(",")(1)) / 1000)
+//                val key = kv._1// + ":" + date.toString("yyyy-MM-dd:HH") + ":" + (date.getMinuteOfHour / 10)
+//                val value = kv._2.split(",")(0).toLowerCase()
+//                
+//                redis.lpush(key, kv._2.toString)
+//                redis.ltrim(kv._1, 0, 60)
+                
+                // expire in 24h
+                //redis.setex(key, 60 * 60 * 24, value)
+                
+
               } catch {
                 case e: Exception => println("just simply ignore" + kv._1 + " ---- " + kv._2)
               }
             })
           })
         }
+        
       })
 
       if (!local) {

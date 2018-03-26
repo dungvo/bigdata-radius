@@ -223,3 +223,58 @@ PUT _template/template_radius-load
   }
 }
 }
+
+
+PUT _template/template_monitor-radius
+{
+  "template": "monitor-radius-*",
+  "order": 0,
+  "settings": {
+    "refresh_interval": "30s",
+    "number_of_shards": 3,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "docs": {
+      "properties": {
+        "date_time": {
+          "type": "date",
+          "format": "date_time"
+        },
+        "bras_id": {
+          "type": "keyword"
+        },
+        "signIn": {
+          "type": "double"
+        },
+        "logOff": {
+          "type": "double"
+        },
+        "SL_Rate": {
+          "type": "double"
+        },
+        "LS_Rate": {
+          "type": "double"
+        },
+        "SL_IQR": {
+          "type": "double"
+        },
+        "LS_IQR": {
+          "type": "double"
+        },
+        "active_users": {
+          "type": "long"
+        },
+        "label": {
+          "type": "keyword"
+        },
+        "S_Active": {
+          "type": "double"
+        },
+        "L_Active": {
+          "type": "double"
+        }
+      }
+    }
+  }
+}
