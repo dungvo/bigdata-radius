@@ -52,7 +52,7 @@ val scalajHttp =  "org.scalaj" %% "scalaj-http" % "2.3.0"
 
 val bigdataCore = "com.ftel" % "bigdata-core_2.11" % "0.1.0-SNAPSHOT" exclude("io.netty", "netty") // exclude("io.netty", "netty") exclude("org.apache.spark", "spark-sql_2.11")  exclude("com.fasterxml.jackson.core","jackson-annotations")  exclude("org.slf4j","slf4j-api")
 
-
+val sqlKafka = "org.apache.spark" %% "spark-sql-kafka-0-10" % "2.0.2"
 
 lazy val commonSettings = Seq(
   organization := "com.ftel",
@@ -87,6 +87,7 @@ lazy val root = (project in file("."))
       twitterBijection,
       gson,
       scalajHttp,
+      sqlKafka,
       //"RedisLabs" % "spark-redis" % "0.3.2"
       //"net.debasishg" % "redisclient_2.10" % "2.11",
       "net.debasishg" %% "redisclient" % "3.4",
@@ -98,6 +99,7 @@ lazy val root = (project in file("."))
 
 assemblyMergeStrategy in assembly := {
  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+ case "META-INF/services/org.apache.spark.sql.sources.DataSourceRegister" => MergeStrategy.concat
  case x => MergeStrategy.first
 }
 
